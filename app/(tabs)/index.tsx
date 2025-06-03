@@ -17,7 +17,7 @@ export default function HomeScreen() {
         />
       }>
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Guy's App !</ThemedText>
+        <ThemedText type="title">התנדבות שער הנגב</ThemedText>
         <HelloWave />
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
@@ -32,7 +32,7 @@ export default function HomeScreen() {
               web: 'F12',
             })}
           </ThemedText>{' '}
-          to open developer tools.
+          to open developer 
         </ThemedText>
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
