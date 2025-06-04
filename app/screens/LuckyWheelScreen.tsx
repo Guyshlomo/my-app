@@ -56,8 +56,8 @@ const PRIZES = [
   { 
     value: 0,
     color: '#9FD9B3',
-    couponTitle: 'ארוחת\nבוקר',
-    icon: '🥐'  // קרואסון
+    couponTitle: 'ארוחת\nבוקר\nבאוריוס',
+    icon: '🍪'  // עוגיה
   },
   { 
     value: 0,
@@ -109,6 +109,7 @@ const LuckyWheelScreen: React.FC = () => {
   const [userCoins, setUserCoins] = useState(0);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [displayedCoins, setDisplayedCoins] = useState(0);
+  const [currentPrize, setCurrentPrize] = useState<typeof PRIZES[0] | null>(null);
   const spinValue = useRef(new Animated.Value(0)).current;
   const buttonScale = useRef(new Animated.Value(1)).current;
   const shimmerPosition = useRef(new Animated.Value(0)).current;
@@ -197,9 +198,10 @@ const LuckyWheelScreen: React.FC = () => {
   const handlePrize = async (prize: typeof PRIZES[0], segmentIndex: number) => {
     // מאפסים את הסיבוב החינם בכל פעם שנוחתים על משבצת
     setHasFreeSpins(false);
+    setCurrentPrize(prize);
 
-    // בדיקה אם נחתנו על 1500 מטבעות
-    if (prize.value === 1500) {
+    // בדיקה אם נחתנו על 1500 מטבעות - חייב להיות גם הערך וגם הטקסט המתאים
+    if (prize.value === 1500 && prize.couponTitle === '1500\nמטבעות') {
       // מעדכנים את המטבעות מיד
       const newCoins = userCoins + 1500;
       setUserCoins(newCoins);
@@ -208,6 +210,7 @@ const LuckyWheelScreen: React.FC = () => {
       emitCoinsUpdate(newCoins);
 
       // מציגים את הבאנר
+      setRewardText('איזה כיף! התווספו לך 1500 מטבעות! 🎉');
       setShowWinBanner(true);
       
       // מפעילים את אנימציית הבאנר
@@ -243,8 +246,8 @@ const LuckyWheelScreen: React.FC = () => {
         setShowWinBanner(false);
       });
     }
-    // בדיקה אם נחתנו על סיבוב נוסף - חייב להיות המשבצת הראשונה
-    else if (segmentIndex === 0) {
+    // בדיקה מחמירה יותר לסיבוב נוסף - חייב להיות גם האינדקס הנכון, גם הכותרת הנכונה וגם האייקון הנכון
+    else if (segmentIndex === 0 && prize.couponTitle === 'סיבוב\nנוסף' && prize.icon === '🔄') {
       setHasFreeSpins(true);
       setRewardText('זכית בסיבוב נוסף! 🎡');
       
@@ -261,27 +264,51 @@ const LuckyWheelScreen: React.FC = () => {
           useNativeDriver: true 
         })
       ]).start(() => {
-        setTimeout(() => {
-          startSpin();
-        }, 500);
+        // נוסיף בדיקה נוספת שאכן יש סיבוב חינם לפני שמתחילים סיבוב חדש
+        if (hasFreeSpins) {
+          setTimeout(() => {
+            startSpin();
+          }, 500);
+        }
       });
     }
     // כל פרס אחר
     else {
-      setRewardText(`זכית ב${prize.couponTitle.replace('\n', ' ')}! 🎉`);
-      Animated.sequence([
-        Animated.timing(fadeReward, { 
-          toValue: 1, 
-          duration: 200, 
-          useNativeDriver: true 
-        }),
-        Animated.delay(2000),
-        Animated.timing(fadeReward, { 
-          toValue: 0, 
-          duration: 300, 
-          useNativeDriver: true 
-        })
-      ]).start();
+      const prizeText = prize.couponTitle.replace('\n', ' ');
+      setRewardText(`זכית ב${prizeText}! 🎉`);
+      setShowWinBanner(true);
+      
+      Animated.parallel([
+        Animated.sequence([
+          Animated.spring(winBannerScale, {
+            toValue: 1,
+            useNativeDriver: true,
+            damping: 10,
+            stiffness: 100
+          }),
+          Animated.delay(3000),
+          Animated.timing(winBannerScale, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true
+          })
+        ]),
+        Animated.sequence([
+          Animated.timing(winBannerOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true
+          }),
+          Animated.delay(3000),
+          Animated.timing(winBannerOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true
+          })
+        ])
+      ]).start(() => {
+        setShowWinBanner(false);
+      });
     }
   };
 
@@ -332,24 +359,121 @@ const LuckyWheelScreen: React.FC = () => {
     const segmentIndex = Math.floor(Math.random() * PRIZES.length);
     const segmentAngle = 360 / PRIZES.length;
     
-    // חישוב הסיבוב כך שיעצור בדיוק על המשולש
-    const targetRotation = 360 * 10 + (segmentIndex * segmentAngle);
-    // מוסיפים חצי מהזווית של המשולש כדי שהחץ יצביע בדיוק על המרכז
-    const adjustedRotation = targetRotation + (segmentAngle / 2);
+    // חישוב מדויק של הסיבוב
+    const baseRotation = 3600; // 10 סיבובים מלאים
+    // מחשבים את הסיבוב כך שהחץ יעצור בדיוק על המשולשים
+    const targetRotation = baseRotation + (segmentIndex * segmentAngle);
+    
+    console.log('Selected prize index:', segmentIndex);
+    console.log('Selected prize:', PRIZES[segmentIndex].couponTitle);
     
     spinValue.setValue(0);
     Animated.timing(spinValue, {
-      toValue: adjustedRotation,
+      toValue: targetRotation,
       duration: SPIN_DURATION,
       easing: Easing.bezier(0.2, 0.6, 0.2, 1),
       useNativeDriver: true,
     }).start(() => {
       setIsSpinning(false);
       
-      // טיפול בפרס
       const prize = PRIZES[segmentIndex];
-      console.log('Landed on prize:', prize.couponTitle, 'at index:', segmentIndex); // לוג לדיבוג
-      handlePrize(prize, segmentIndex);
+      
+      // בודקים אם זה סיבוב נוסף
+      if (segmentIndex === 0 && prize.couponTitle === 'סיבוב\nנוסף') {
+        console.log('Free spin awarded!');
+        setHasFreeSpins(true);
+        setRewardText('זכית בסיבוב נוסף! 🎡');
+        
+        Animated.sequence([
+          Animated.timing(fadeReward, { 
+            toValue: 1, 
+            duration: 200, 
+            useNativeDriver: true 
+          }),
+          Animated.delay(2000),
+          Animated.timing(fadeReward, { 
+            toValue: 0, 
+            duration: 300, 
+            useNativeDriver: true 
+          })
+        ]).start(() => {
+          if (hasFreeSpins) {
+            setTimeout(() => {
+              startSpin();
+            }, 500);
+          }
+        });
+      }
+      // בודקים אם זה 1500 מטבעות
+      else if (prize.value === 1500 && prize.couponTitle === '1500\nמטבעות') {
+        console.log('Adding 1500 coins!');
+        const newCoins = userCoins + 1500;
+        setUserCoins(newCoins);
+        setDisplayedCoins(newCoins);
+        userManager.updateUserCoins(newCoins);
+        emitCoinsUpdate(newCoins);
+
+        // מציגים הודעת זכייה
+        setRewardText('זכית ב-1500 מטבעות! 🎉');
+        setShowWinBanner(true);
+        
+        // אנימציית באנר
+        Animated.parallel([
+          Animated.sequence([
+            Animated.spring(winBannerScale, {
+              toValue: 1,
+              useNativeDriver: true,
+              damping: 10,
+              stiffness: 100
+            }),
+            Animated.delay(3000),
+            Animated.timing(winBannerScale, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true
+            })
+          ]),
+          Animated.sequence([
+            Animated.timing(winBannerOpacity, {
+              toValue: 1,
+              duration: 300,
+              useNativeDriver: true
+            }),
+            Animated.delay(3000),
+            Animated.timing(winBannerOpacity, {
+              toValue: 0,
+              duration: 300,
+              useNativeDriver: true
+            })
+          ])
+        ]).start(() => {
+          setShowWinBanner(false);
+        });
+
+        // אנימציית הוספת מטבעות
+        setShowCoinPopup(true);
+        coinPopupAnim.setValue(0);
+        Animated.sequence([
+          Animated.timing(coinPopupAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.delay(1500),
+          Animated.timing(coinPopupAnim, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setShowCoinPopup(false);
+        });
+      }
+      // כל פרס אחר
+      else {
+        console.log('Regular prize awarded:', prize.couponTitle);
+        handlePrize(prize, segmentIndex);
+      }
     });
   };
 
@@ -375,7 +499,8 @@ const LuckyWheelScreen: React.FC = () => {
             height="8"
           />
         </Defs>
-        <G>
+        {/* מסובבים את הגלגל כך שהמשולשים יהיו מיושרים עם החץ */}
+        <G rotation={-anglePerSegment / 2}>
           {PRIZES.map((prize, index) => {
             const angle = index * anglePerSegment;
             const angleRad = (angle * Math.PI) / 180;
@@ -428,7 +553,7 @@ const LuckyWheelScreen: React.FC = () => {
                   ))}
                 </G>
 
-                {/* אייקון - תמונת מטבע במקום אמוג'י עבור מטבעות */}
+                {/* אייקון */}
                 <G transform={`translate(${iconX}, ${iconY}) rotate(${textRotation})`}>
                   {prize.couponTitle.includes('מטבעות') ? (
                     <Use href="#coinImage" />
@@ -622,34 +747,41 @@ const LuckyWheelScreen: React.FC = () => {
           </Animated.View>
         )}
 
-        {/* באנר זכייה במטבעות - עיצוב מעודכן */}
-        {showWinBanner && (
-          <Animated.View
-            style={[
-              styles.winBanner,
-              {
-                transform: [{ scale: winBannerScale }],
-                opacity: winBannerOpacity,
-                zIndex: 1000, // מוודא שהבאנר יופיע מעל כל הרכיבים האחרים
-              }
-            ]}
-          >
-            <LinearGradient
-              colors={['#4CAF50', '#45A049']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.winBannerGradient}
+        {/* באנר זכייה - עיצוב מעודכן */}
+        {showWinBanner && currentPrize && (
+          <View style={styles.bannerOverlay}>
+            <Animated.View
+              style={[
+                styles.winBanner,
+                {
+                  transform: [{ scale: winBannerScale }],
+                  opacity: winBannerOpacity,
+                }
+              ]}
             >
-              <Text style={styles.winBannerText}>
-                איזה כיף! התווספו לך 1500 מטבעות! 🎉
-              </Text>
-              <View style={styles.winBannerCoins}>
-                <Text style={styles.winBannerEmoji}>🪙</Text>
-                <Text style={styles.winBannerEmoji}>🪙</Text>
-                <Text style={styles.winBannerEmoji}>🪙</Text>
-              </View>
-            </LinearGradient>
-          </Animated.View>
+              <LinearGradient
+                colors={['#4CAF50', '#45A049']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.winBannerGradient}
+              >
+                <Text style={styles.winBannerText}>
+                  {rewardText}
+                </Text>
+                <View style={styles.winBannerEmojis}>
+                  {currentPrize.value === 1500 ? (
+                    <>
+                      <Text style={styles.winBannerEmoji}>🪙</Text>
+                      <Text style={styles.winBannerEmoji}>🪙</Text>
+                      <Text style={styles.winBannerEmoji}>🪙</Text>
+                    </>
+                  ) : (
+                    <Text style={styles.winBannerEmoji}>{currentPrize.icon}</Text>
+                  )}
+                </View>
+              </LinearGradient>
+            </Animated.View>
+          </View>
         )}
 
         {/* הודעת זכייה רגילה */}
@@ -897,11 +1029,18 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
-  winBanner: {
+  bannerOverlay: {
     position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -150 }, { translateY: -75 }],
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 1000,
+  },
+  winBanner: {
     width: 300,
     borderRadius: 20,
     overflow: 'hidden',
@@ -931,7 +1070,7 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     marginBottom: 10,
   },
-  winBannerCoins: {
+  winBannerEmojis: {
     flexDirection: 'row',
     marginTop: 10,
     justifyContent: 'center',

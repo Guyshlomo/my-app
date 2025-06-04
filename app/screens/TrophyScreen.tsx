@@ -161,12 +161,15 @@ export default function TrophyScreen() {
             source={require('../../assets/images/trophy.png')}
             style={[styles.trophyImage, { tintColor: '#FFD700' }]}
           />
+          {/* תצוגת המטבעות מיד מתחת לגביע */}
+          <View style={styles.coinsContainer}>
+            <Text style={styles.coinsEmoji}>✨</Text>
+            <Text style={styles.coinsText}>
+              צברת <Text style={styles.coinsNumber}>{userCoins.toLocaleString()}</Text> מטבעות
+            </Text>
+            <Text style={styles.congratsText}>כל הכבוד! המשך כך! 🎉</Text>
+          </View>
         </View>
-      </View>
-
-      {/* תצוגת המטבעות */}
-      <View style={styles.coinsContainer}>
-        <Text style={styles.coinsText}>{userCoins.toLocaleString()}</Text>
       </View>
 
       {/* רשימת המשתמשים */}
@@ -367,12 +370,13 @@ const styles = StyleSheet.create({
   },
   trophyContainer: {
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 10,
   },
   trophyImage: {
     width: 120,
     height: 120,
     resizeMode: 'contain',
+    marginBottom: 5,
   },
   scrollView: {
     flex: 1,
@@ -520,11 +524,27 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   coinsContainer: {
-    padding: 10,
     alignItems: 'center',
+    marginTop: -10,
+  },
+  coinsEmoji: {
+    fontSize: 24,
+    marginBottom: 2,
   },
   coinsText: {
     fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+  },
+  coinsNumber: {
+    color: '#B8860B',
     fontWeight: 'bold',
+    fontSize: 22,
+  },
+  congratsText: {
+    fontSize: 15,
+    color: '#4CAF50',
+    marginTop: 2,
+    textAlign: 'center',
   },
 }); 
