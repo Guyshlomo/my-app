@@ -13,6 +13,7 @@ import {
     View
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
+import { addCoinsUpdateListener, removeCoinsUpdateListener } from '../utils/eventEmitter';
 import { User, userManager } from '../utils/userManager';
 
 const { width } = Dimensions.get('window');
@@ -39,9 +40,23 @@ export default function TrophyScreen() {
   const confettiLeftRef = useRef<ConfettiCannon>(null);
   const confettiRightRef = useRef<ConfettiCannon>(null);
   const confettiCenterRef = useRef<ConfettiCannon>(null);
+  const [userCoins, setUserCoins] = useState(0);
 
   useEffect(() => {
     loadData();
+    loadUserCoins();
+
+    // הוספת מאזין לשינויים במטבעות
+    const coinsUpdateHandler = (newCoins: number) => {
+      setUserCoins(newCoins);
+    };
+
+    addCoinsUpdateListener(coinsUpdateHandler);
+
+    // ניקוי המאזין כשהקומפוננטה מתפרקת
+    return () => {
+      removeCoinsUpdateListener(coinsUpdateHandler);
+    };
   }, []);
 
   const loadData = async () => {
@@ -62,6 +77,13 @@ export default function TrophyScreen() {
     }
     
     setAllUsers(sortedUsers);
+  };
+
+  const loadUserCoins = async () => {
+    const user = await userManager.getCurrentUser();
+    if (user) {
+      setUserCoins(user.coins);
+    }
   };
 
   // עדכון הדירוג בכל פעם שהמטבעות משתנים
@@ -140,6 +162,11 @@ export default function TrophyScreen() {
             style={[styles.trophyImage, { tintColor: '#FFD700' }]}
           />
         </View>
+      </View>
+
+      {/* תצוגת המטבעות */}
+      <View style={styles.coinsContainer}>
+        <Text style={styles.coinsText}>{userCoins.toLocaleString()}</Text>
       </View>
 
       {/* רשימת המשתמשים */}
@@ -491,5 +518,13 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     resizeMode: 'contain',
+  },
+  coinsContainer: {
+    padding: 10,
+    alignItems: 'center',
+  },
+  coinsText: {
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 }); 

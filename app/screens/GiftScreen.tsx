@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import QRCode from 'react-native-qrcode-svg';
+import { addCoinsUpdateListener, removeCoinsUpdateListener } from '../utils/eventEmitter';
 import { userManager } from '../utils/userManager';
 
 const { width, height } = Dimensions.get('window');
@@ -42,6 +43,7 @@ type RootStackParamList = {
   Login: undefined;
   Signup: undefined;
   PurchaseHistory: undefined;
+  LuckyWheel: undefined;
 };
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
@@ -284,15 +286,19 @@ function GiftScreen() {
 
   // טעינת מטבעות המשתמש
   useEffect(() => {
-    userManager.getCurrentUser()
-      .then(user => {
-        if (user) {
-          const coins = user.coins;
-          setUserCoins(coins);
-          coinsAnim.setValue(coins);
-          setAnimatedCoins(coins);
-        }
-      });
+    loadUserCoins();
+
+    // הוספת מאזין לשינויים במטבעות
+    const coinsUpdateHandler = (newCoins: number) => {
+      setUserCoins(newCoins);
+    };
+
+    addCoinsUpdateListener(coinsUpdateHandler);
+
+    // ניקוי המאזין כשהקומפוננטה מתפרקת
+    return () => {
+      removeCoinsUpdateListener(coinsUpdateHandler);
+    };
   }, []);
 
   // מעקב אחרי שינויים במטבעות ואנימציה בהתאם
@@ -378,7 +384,7 @@ function GiftScreen() {
   };
 
   // טיפול בלחיצה על קופון
-  const handleCouponPress = (coupon: CouponData, idx: number) => {
+  const handleCouponPress = async (coupon: CouponData, idx: number) => {
     if (userCoins < coupon.coins) {
       displayErrorModal();
       Vibration.vibrate(400);
@@ -389,50 +395,61 @@ function GiftScreen() {
     setIsAnimating(true);
     const newCoins = userCoins - coupon.coins;
     
-    Animated.timing(coinsAnim, {
-      toValue: newCoins,
-      duration: 1500,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: false,
-    }).start(() => {
-      userManager.updateUserCoins(newCoins)
-        .then(() => {
-          setUserCoins(newCoins);
-          setIsAnimating(false);
-          
-          confettiLeftRef.current?.start();
-          setTimeout(() => confettiCenterRef.current?.start(), 100);
-          setTimeout(() => confettiRightRef.current?.start(), 200);
-          
-          setRewardText(`הורדת ${coupon.coins} מטבעות 💸`);
-          Animated.sequence([
-            Animated.timing(fadeReward, { toValue: 1, duration: 200, useNativeDriver: true }),
-            Animated.delay(1200),
-            Animated.timing(fadeReward, { toValue: 0, duration: 300, useNativeDriver: true }),
-          ]).start();
+    try {
+      // שמירת הקופון שנרכש
+      const saveCouponSuccess = await userManager.savePurchasedCoupon({
+        id: coupon.id,
+        title: coupon.title,
+        desc: coupon.desc,
+        coins: coupon.coins
+      });
 
-          Vibration.vibrate(100);
-          
-          setSelectedCouponForBarcode(coupon);
-          setShowBarcodeModal(true);
-          modalAnimation.setValue(0);
-          Animated.spring(modalAnimation, {
-            toValue: 1,
-            friction: 8,
-            tension: 65,
-            useNativeDriver: true
-          }).start();
+      if (!saveCouponSuccess) {
+        throw new Error('Failed to save coupon');
+      }
 
-          // סגירה אוטומטית אחרי 10 שניות
-          setTimeout(closeBarcode, 10000);
+      // עדכון המטבעות
+      await userManager.updateUserCoins(newCoins);
+      setUserCoins(newCoins);
+      
+      // אנימציות והודעות
+      confettiLeftRef.current?.start();
+      setTimeout(() => confettiCenterRef.current?.start(), 100);
+      setTimeout(() => confettiRightRef.current?.start(), 200);
+      
+      setRewardText(`הורדת ${coupon.coins} מטבעות 💸`);
+      Animated.sequence([
+        Animated.timing(fadeReward, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.delay(1200),
+        Animated.timing(fadeReward, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start();
 
-          setTimeout(() => setSelectedCoupon(null), 1500);
-        });
-    });
+      Vibration.vibrate(100);
+      
+      setSelectedCouponForBarcode(coupon);
+      setShowBarcodeModal(true);
+      modalAnimation.setValue(0);
+      Animated.spring(modalAnimation, {
+        toValue: 1,
+        friction: 8,
+        tension: 65,
+        useNativeDriver: true
+      }).start();
+
+      // סגירה אוטומטית אחרי 10 שניות
+      setTimeout(closeBarcode, 10000);
+      setTimeout(() => setSelectedCoupon(null), 1500);
+    } catch (error) {
+      console.error('Error purchasing coupon:', error);
+      setErrorMessage('אירעה שגיאה ברכישת הקופון');
+      displayErrorModal();
+      setIsAnimating(false);
+      setSelectedCoupon(null);
+    }
   };
 
   // טיפול בלחיצה על כפתור המטבעות
-  const handleCoinButtonPress = (coupon: CouponData) => {
+  const handleCoinButtonPress = async (coupon: CouponData) => {
     if (userCoins < coupon.coins) {
       displayErrorModal();
       Vibration.vibrate(400);
@@ -442,54 +459,60 @@ function GiftScreen() {
     setIsAnimating(true);
     const endCoins = userCoins - coupon.coins;
 
-    Animated.timing(coinsAnim, {
-      toValue: endCoins,
-      duration: 1500,
-      easing: Easing.bezier(0.4, 0, 0.2, 1),
-      useNativeDriver: false,
-    }).start(() => {
-      userManager.updateUserCoins(endCoins)
-        .then(() => {
-          setUserCoins(endCoins);
-          setIsAnimating(false);
-          
-          confettiLeftRef.current?.start();
-          setTimeout(() => confettiCenterRef.current?.start(), 100);
-          setTimeout(() => confettiRightRef.current?.start(), 200);
-          
-          setRewardText(`הורדת ${coupon.coins} מטבעות 💸`);
-          Animated.sequence([
-            Animated.timing(fadeReward, { toValue: 1, duration: 200, useNativeDriver: true }),
-            Animated.delay(1200),
-            Animated.timing(fadeReward, { toValue: 0, duration: 300, useNativeDriver: true }),
-          ]).start();
+    try {
+      // שמירת הקופון שנרכש
+      const saveCouponSuccess = await userManager.savePurchasedCoupon({
+        id: coupon.id,
+        title: coupon.title,
+        desc: coupon.desc,
+        coins: coupon.coins
+      });
 
-          Vibration.vibrate(100);
-          
-          setSelectedCouponForBarcode(coupon);
-          setShowBarcodeModal(true);
-          modalAnimation.setValue(0);
-          Animated.spring(modalAnimation, {
-            toValue: 1,
-            friction: 8,
-            tension: 65,
-            useNativeDriver: true
-          }).start();
+      if (!saveCouponSuccess) {
+        throw new Error('Failed to save coupon');
+      }
 
-          // סגירה אוטומטית אחרי 10 שניות
-          setTimeout(closeBarcode, 10000);
-        });
-    });
+      // עדכון המטבעות
+      await userManager.updateUserCoins(endCoins);
+      setUserCoins(endCoins);
+      
+      // אנימציות והודעות
+      confettiLeftRef.current?.start();
+      setTimeout(() => confettiCenterRef.current?.start(), 100);
+      setTimeout(() => confettiRightRef.current?.start(), 200);
+      
+      setRewardText(`הורדת ${coupon.coins} מטבעות 💸`);
+      Animated.sequence([
+        Animated.timing(fadeReward, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.delay(1200),
+        Animated.timing(fadeReward, { toValue: 0, duration: 300, useNativeDriver: true }),
+      ]).start();
+
+      Vibration.vibrate(100);
+      
+      setSelectedCouponForBarcode(coupon);
+      setShowBarcodeModal(true);
+      modalAnimation.setValue(0);
+      Animated.spring(modalAnimation, {
+        toValue: 1,
+        friction: 8,
+        tension: 65,
+        useNativeDriver: true
+      }).start();
+
+      // סגירה אוטומטית אחרי 10 שניות
+      setTimeout(closeBarcode, 10000);
+    } catch (error) {
+      console.error('Error purchasing coupon:', error);
+      setErrorMessage('אירעה שגיאה ברכישת הקופון');
+      displayErrorModal();
+      setIsAnimating(false);
+    }
   };
 
   // טיפול בלחיצה על כפתור הפתע אותי
   const handleSurprise = () => {
-    setIsSurpriseLoading(true);
-    const idx = Math.floor(Math.random() * COUPONS.length);
-    setTimeout(() => {
-      setIsSurpriseLoading(false);
-      handleCouponPress(COUPONS[idx], idx);
-    }, 600);
+    navigation.navigate('LuckyWheel');
   };
 
   // חישוב רמה ו־ProgressBar
@@ -546,6 +569,13 @@ function GiftScreen() {
     }
   }, [userCoins]);
 
+  const loadUserCoins = async () => {
+    const user = await userManager.getCurrentUser();
+    if (user) {
+      setUserCoins(user.coins);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient 
@@ -589,15 +619,31 @@ function GiftScreen() {
             </View>
           </View>
 
-          {/* בלונים */}
-          <Text style={styles.balloons}>🎈🎈🎉</Text>
-
           {/* מד רמה ו־ProgressBar */}
           <View style={styles.levelBar}>
             <Text style={styles.levelText}>{`רמה ${level.index + 1} – ${level.name}`}</Text>
             <ProgressBar progress={progress} color="#FFD700" />
             <Text style={styles.progressText}>{`עוד ${coinsToPremium} מטבעות ל-${premiumCoupon.title}`}</Text>
           </View>
+
+          {/* לחצן גלגל המזל */}
+          <TouchableOpacity 
+            style={styles.luckWheelButton}
+            onPress={handleSurprise}
+          >
+            <LinearGradient
+              colors={['#FFD700', '#FFA500', '#FF8C00']}
+              style={styles.luckWheelGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <View style={styles.luckWheelContent}>
+                <Text style={styles.luckWheelEmoji}>🎡</Text>
+                <Text style={styles.luckWheelText}>גלגל המזל</Text>
+                <Text style={styles.luckWheelSparkle}>✨</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
 
           {/* כותרת מדוברת */}
           <Text style={styles.headerTitleBig}>מה בא לך להרוויח היום?</Text>
@@ -1207,6 +1253,52 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FF3B30',
     textAlign: 'center',
+  },
+  luckWheelButton: {
+    alignSelf: 'center',
+    width: '85%',
+    maxWidth: 320,
+    marginVertical: 16,
+    borderRadius: 25,
+    elevation: 8,
+    shadowColor: '#FFD700',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
+    transform: [{ scale: 1.02 }],
+  },
+  luckWheelGradient: {
+    borderRadius: 25,
+    padding: 2,
+  },
+  luckWheelContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 23,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  luckWheelEmoji: {
+    fontSize: 32,
+    marginRight: 12,
+  },
+  luckWheelText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  luckWheelSparkle: {
+    fontSize: 28,
+    marginLeft: 12,
   },
 });
 

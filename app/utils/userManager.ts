@@ -10,6 +10,14 @@ export interface User {
   coins: number;
   rank?: number;
   lastLoginDate?: string;
+  purchasedCoupons?: {
+    id: number;
+    title: string;
+    desc: string;
+    coins: number;
+    purchaseDate: string;
+    isUsed: boolean;
+  }[];
 }
 
 // רשימת משתמשים קבועה לדוגמה
@@ -194,4 +202,71 @@ export const userManager = {
       return 0;
     }
   },
+
+  // פונקציה חדשה לשמירת קופון שנרכש
+  async savePurchasedCoupon(couponData: {
+    id: number;
+    title: string;
+    desc: string;
+    coins: number;
+  }): Promise<boolean> {
+    try {
+      const currentUser = await this.getCurrentUser();
+      if (!currentUser) return false;
+
+      const newCoupon = {
+        ...couponData,
+        purchaseDate: new Date().toISOString(),
+        isUsed: false
+      };
+
+      const updatedUser = {
+        ...currentUser,
+        purchasedCoupons: [
+          ...(currentUser.purchasedCoupons || []),
+          newCoupon
+        ]
+      };
+
+      await this.saveCurrentUser(updatedUser);
+      return true;
+    } catch (error) {
+      console.error('Error saving purchased coupon:', error);
+      return false;
+    }
+  },
+
+  // פונקציה לסימון קופון כמשומש
+  async markCouponAsUsed(couponId: number): Promise<boolean> {
+    try {
+      const currentUser = await this.getCurrentUser();
+      if (!currentUser || !currentUser.purchasedCoupons) return false;
+
+      const updatedCoupons = currentUser.purchasedCoupons.map(coupon =>
+        coupon.id === couponId ? { ...coupon, isUsed: true } : coupon
+      );
+
+      const updatedUser = {
+        ...currentUser,
+        purchasedCoupons: updatedCoupons
+      };
+
+      await this.saveCurrentUser(updatedUser);
+      return true;
+    } catch (error) {
+      console.error('Error marking coupon as used:', error);
+      return false;
+    }
+  },
+
+  // פונקציה לקבלת כל הקופונים שנרכשו
+  async getPurchasedCoupons(): Promise<User['purchasedCoupons']> {
+    try {
+      const currentUser = await this.getCurrentUser();
+      return currentUser?.purchasedCoupons || [];
+    } catch (error) {
+      console.error('Error getting purchased coupons:', error);
+      return [];
+    }
+  }
 }; 

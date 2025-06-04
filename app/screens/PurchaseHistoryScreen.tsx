@@ -39,35 +39,40 @@ function PurchaseHistoryScreen() {
 
   const loadPurchaseHistory = async () => {
     try {
-      const user = await userManager.getCurrentUser();
-      if (user) {
-        // כאן צריך להוסיף לוגיקה לטעינת היסטוריית הרכישות מהשרת
-        const mockPurchases: PurchasedCoupon[] = [
-          {
-            id: 1,
-            title: '🍩 מאפה בקפה צ׳לה',
-            desc: 'ניר עם',
-            coins: 170,
-            purchaseDate: '2024-03-20',
-            barcode: 'coupon-1-123456',
-            isUsed: false
-          },
-          {
-            id: 2,
-            title: '🍟 חומוס של טחינה',
-            desc: 'צ׳יפס במתנה',
-            coins: 150,
-            purchaseDate: '2024-03-19',
-            barcode: 'coupon-2-123457',
-            isUsed: true
-          },
-        ];
-        setPurchases(mockPurchases);
+      const purchasedCoupons = await userManager.getPurchasedCoupons();
+      if (purchasedCoupons) {
+        setPurchases(purchasedCoupons.map(coupon => ({
+          id: coupon.id,
+          title: coupon.title,
+          desc: coupon.desc,
+          coins: coupon.coins,
+          purchaseDate: coupon.purchaseDate,
+          barcode: `coupon-${coupon.id}-${Date.now()}`,
+          isUsed: coupon.isUsed
+        })));
       }
     } catch (error) {
       console.error('Error loading purchase history:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUseCoupon = async (couponId: number) => {
+    try {
+      const success = await userManager.markCouponAsUsed(couponId);
+      if (success) {
+        // עדכון הרשימה המקומית
+        setPurchases(prevPurchases =>
+          prevPurchases.map(purchase =>
+            purchase.id === couponId
+              ? { ...purchase, isUsed: true }
+              : purchase
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error marking coupon as used:', error);
     }
   };
 
