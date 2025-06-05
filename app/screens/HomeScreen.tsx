@@ -2,17 +2,15 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Animated,
+  Dimensions,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import ConfettiCannon from 'react-native-confetti-cannon';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import { addCoinsUpdateListener, removeCoinsUpdateListener } from '../utils/eventEmitter';
@@ -42,11 +40,64 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 // הוספת טיפים והודעות מהאווטר
 const AVATAR_MESSAGES = {
-  lowCoins: 'בוא נתנדב יחד כדי להרוויח עוד מטבעות! 💪',
   closeToNextStage: 'כמעט שם! עוד קצת להשלמת השלב! 🎯',
   stageComplete: 'כל הכבוד! השלמת את השלב! 🌟',
   dailyTip: 'היי! יש לנו היום הזדמנויות התנדבות חדשות! 🎁',
 };
+
+// משפטי מוטיבציה והשבחה לכל שלב
+const MOTIVATION_MESSAGES = [
+  'הצעד הראשון הוא תמיד הקשה ביותר! 🌟',
+  'אתה בדרך הנכונה! המשך כך! 💪',
+  'יפה מאוד! אתה מתקדם נהדר! 🎯',
+  'רואים שאתה מתחיל להבין את הקטע! 🔥',
+  'חמש כבר? אתה אלוף אמיתי! 🏆',
+  'אתה באמצע הדרך! ממשיך בכוח! ⭐',
+  'מרשים! השביל שלך מתחיל להיראות! 🌈',
+  'שמונה שלבים! אתה כבר מומחה! 🎨',
+  'תשעה! התקדמות יוצאת דופן! 💎',
+  'עשרה! אתה באמת משהו מיוחד! 🚀',
+  'אחד עשר! אתה כבר לא רק מתחיל! 🌟',
+  'שנים עשר! רמה מקצועית אמיתית! 👑',
+  'שלושה עשר! אתה הופך לאגדה! ✨',
+  'ארבעה עשר! כמעט בפסגה! 🏔️',
+  'חמישה עשר! אתה השגת את הבלתי אפשרי! 🎆',
+  'שישה עשר! אתה יוצר היסטוריה! 🏆',
+  'שבעה עשר! רמת מאסטר אמיתית! 💫',
+  'שמונה עשר! אתה מעבר למצוינות! 🌟',
+  'תשעה עשר! אתה מגדיר מחדש את המילה הישג! 🎯',
+  'עשרים! אתה ברמה אחרת לגמרי! 🚀',
+  'כ"א! אתה פשוט פלא של הטבע! 🌠',
+  'כ"ב! אין גבולות למה שאתה יכול! 💥',
+  'כ"ג! אתה מלהיב ומעורר השראה! ⚡',
+  'כ"ד! רמת הישגיות בלתי רגילה! 🔮',
+  'כ"ה! אתה עונה על כל הציפיות! 🎭',
+  'כ"ו! המסע שלך הופך לסיפור! 📖',
+  'כ"ז! אתה מוכיח שהכל אפשרי! 🗝️',
+  'כ"ח! המנטליות שלך מדהימה! 🧠',
+  'כ"ט! אתה דוגמה לחיקוי! 🏅',
+  'שלושים! מספר עגול ומרשים! 🎪',
+  'ל"א! אתה ממשיך להפתיע! 🎨',
+  'ל"ב! ההתמדה שלך משפיעה! 🌊',
+  'ל"ג! אתה מלא אנרגיה חיובית! ☀️',
+  'ל"ד! הדרך שלך מאירה לאחרים! 💡',
+  'ל"ה! אתה משנה את החוקים! 🔄',
+  'ל"ו! יצירתיות ללא גבולות! 🎪',
+  'ל"ז! אתה מעורר התפעלות! 👏',
+  'ל"ח! המומנטום שלך מדבק! 🌪️',
+  'ל"ט! אתה כמעט ברמת על-אנושית! 🦸',
+  'ארבעים! מספר מיסטי ומיוחד! 🔯',
+  'מ"א! אתה עבר כל מבחן! ✅',
+  'מ"ב! התשובה לכל השאלות! 🤖',
+  'מ"ג! אתה יוצר מציאות חדשה! 🌍',
+  'מ"ד! הדמיון שלך הופך למציאות! 🌈',
+  'מ"ה! אתה הגדרה חדשה להצלחה! 💫',
+  'מ"ו! אתה צובר הישגים כמו אגדות! 📚',
+  'מ"ז! המסע שלך יהפוך ללגנדה! 🏛️',
+  'מ"ח! אתה מגיע לרמות חדשות! 🎯',
+  'מ"ט! כמעט חמישים! אתה פלא! ⭐',
+  'חמישים! אתה השגת את הבלתי ייאמן! 🎆'
+];
 
 // הגדרת האווטרים לפי שלבים
 const STAGE_AVATARS = {
@@ -64,22 +115,22 @@ export default function HomeScreen() {
   const scrollViewRef = useRef<ScrollView | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userCoins, setUserCoins] = React.useState(0);
-  const [confettiVisible, setConfettiVisible] = React.useState(false);
+  const [showMotivationBanner, setShowMotivationBanner] = useState(false);
+  const [motivationMessage, setMotivationMessage] = useState('');
   const [isAvatarWalking, setIsAvatarWalking] = useState(false);
   const [avatarMessage, setAvatarMessage] = useState('');
   const [showTip, setShowTip] = useState(false);
-  const [totalStages, setTotalStages] = useState(15);
+  const [totalStages, setTotalStages] = useState(50); // התחל עם 50 שלבים במקום 15
   const [currentAvatar, setCurrentAvatar] = useState('🐣');
   const avatarPosition = React.useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const lastProgress = useRef(0);
-  const messageOpacity = useRef(new Animated.Value(0)).current;
   const [selectedStage, setSelectedStage] = useState<number | null>(null);
   const stageScale = useRef(new Animated.Value(1)).current;
-  const messageSlideAnim = useRef(new Animated.Value(-100)).current;
+  const motivationBannerScale = useRef(new Animated.Value(0)).current;
+  const motivationBannerOpacity = useRef(new Animated.Value(0)).current;
   const prevCompletedStagesRef = useRef(0);
   const prevCurrentAvatarRef = useRef(currentAvatar);
   const [messageQueue, setMessageQueue] = useState<string[]>([]);
-  const animationState = useRef({ isAnimating: false }).current;
 
   // טעינת נתוני המשתמש בעת טעינת המסך
   useEffect(() => {
@@ -97,6 +148,8 @@ export default function HomeScreen() {
       removeCoinsUpdateListener(coinsUpdateHandler);
     };
   }, []);
+
+
 
   const loadUserData = async () => {
     const user = await userManager.getCurrentUser();
@@ -172,25 +225,62 @@ export default function HomeScreen() {
     return { x, y };
   }
 
-  // קונפטי כאשר שלב נפתח
+  // באנר מוטיבציוני כאשר שלב נפתח
   const prevStages = React.useRef(stages.map(s => s.status));
   React.useEffect(() => {
     const prev = prevStages.current;
-    let opened = false;
+    let newlyOpenedStage = -1;
     for (let i = 0; i < stages.length; i++) {
       if ((prev[i] === 'locked') && (stages[i].status !== 'locked')) {
-        opened = true;
+        newlyOpenedStage = i;
         break;
       }
     }
-    if (opened) {
-      setConfettiVisible(true);
-      setTimeout(() => setConfettiVisible(false), 2500);
+    if (newlyOpenedStage !== -1) {
+      const message = MOTIVATION_MESSAGES[newlyOpenedStage] || MOTIVATION_MESSAGES[MOTIVATION_MESSAGES.length - 1];
+      setMotivationMessage(message);
+      setShowMotivationBanner(true);
+      
+      // אנימציית הופעה
+      motivationBannerScale.setValue(0);
+      motivationBannerOpacity.setValue(0);
+      
+      Animated.parallel([
+        Animated.spring(motivationBannerScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          damping: 15,
+          stiffness: 150
+        }),
+        Animated.timing(motivationBannerOpacity, {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true
+        })
+      ]).start();
+      
+      // אנימציית היעלמות אחרי 4 שניות
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(motivationBannerScale, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true
+          }),
+          Animated.timing(motivationBannerOpacity, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true
+          })
+        ]).start(() => {
+          setShowMotivationBanner(false);
+        });
+      }, 4000);
     }
     prevStages.current = stages.map(s => s.status);
   }, [stages]);
 
-  // אנימציית אווטאר בין שלבים
+  // אנימציית אווטאר בין שלבים - מרוככת וחלקה יותר
   React.useEffect(() => {
     const currentIdx = stages.findIndex(s => s.status === 'current');
     if (currentIdx === -1 || currentIdx === stages.length - 1) return;
@@ -207,7 +297,7 @@ export default function HomeScreen() {
     const progress = Math.max(0, Math.min(1, (userCoins - coinsForPrev) / (coinsForCurrent - coinsForPrev)));
 
     // אם יש שינוי משמעותי בהתקדמות, מפעילים את אנימציית ההליכה
-    if (Math.abs(progress - lastProgress.current) > 0.01) {
+    if (Math.abs(progress - lastProgress.current) > 0.02) { // הגדלתי את הסף כדי להפחית עדכונים תכופים
       setIsAvatarWalking(true);
 
       // חישוב נקודת היעד על המסלול
@@ -215,38 +305,31 @@ export default function HomeScreen() {
       const targetY = fromCenterY + (toCenterY - fromCenterY) * progress + 
                      Math.sin(progress * Math.PI * 2) * 8 * (1 - Math.abs(progress - 0.5));
 
-      // אנימציה חלקה למיקום החדש
+      // אנימציה חלקה יותר למיקום החדש
       Animated.spring(avatarPosition, {
         toValue: {
           x: targetX - 20,
           y: targetY - 20
         },
         useNativeDriver: true,
-        friction: 8,
-        tension: 40,
-        restDisplacementThreshold: 0.01,
-        restSpeedThreshold: 0.01
+        friction: 12, // יותר חלק
+        tension: 30, // פחות קפיצי
+        restDisplacementThreshold: 0.1,
+        restSpeedThreshold: 0.1
       }).start(() => {
         setIsAvatarWalking(false);
       });
 
-      // עדכון הסקרול כדי לעקוב אחרי האווטר באופן אוטומטי
-      const targetScrollY = Math.max(0, targetY - 300); // שומר על האווטר במרכז המסך
+      // עדכון סקרול מרוכך וחלק
+      const targetScrollY = Math.max(0, targetY - 300);
       
-      // אנימציה חלקה של הסקרול
-      Animated.spring(new Animated.Value((scrollViewRef.current as any)?.contentOffset?.y || 0), {
-        toValue: targetScrollY,
-        useNativeDriver: false,
-        friction: 8,
-        tension: 40
-      }).start(({ finished }) => {
-        if (finished) {
-          scrollViewRef.current?.scrollTo({
-            y: targetScrollY,
-            animated: false
-          });
-        }
-      });
+      // השהיה קצרה לפני הסקרול לתחושה טבעית יותר
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: targetScrollY,
+          animated: true
+        });
+      }, 200);
 
       lastProgress.current = progress;
     }
@@ -289,59 +372,49 @@ export default function HomeScreen() {
     return 0;
   };
 
+  // אתחול מיקום האווטר לשלב הנוכחי
+  useEffect(() => {
+    const currentIdx = stages.findIndex(s => s.status === 'current');
+    if (currentIdx !== -1) {
+      const currentPos = getStagePosition(currentIdx);
+      // מאתחל את האווטר למרכז השלב הנוכחי
+      avatarPosition.setValue({
+        x: currentPos.x + STAGE_SIZE / 2 - 25, // -25 כדי למרכז את האווטר
+        y: currentPos.y + STAGE_SIZE / 2 - 25  // -25 כדי למרכז את האווטר
+      });
+      console.log('Avatar initialized at stage', currentIdx + 1, 'position:', currentPos);
+    }
+  }, [stages.length]); // רץ רק כשמספר השלבים משתנה, לא בכל עדכון מטבעות
+
   // פונקציה להוספת הודעה לתור
   const queueMessage = useCallback((message: string) => {
     setMessageQueue(prev => [...prev, message]);
   }, []);
 
-  // טיפול בהודעות בתור
-  useLayoutEffect(() => {
-    if (messageQueue.length > 0 && !animationState.isAnimating && !showTip) {
-      animationState.isAnimating = true;
-      const currentMessage = messageQueue[0];
-      
-      setAvatarMessage(currentMessage);
-      setShowTip(true);
-      messageSlideAnim.setValue(-100);
-      messageOpacity.setValue(0);
-
-      Animated.parallel([
-        Animated.timing(messageSlideAnim, {
-          toValue: 120,
-          duration: 600,
-          easing: Easing.out(Easing.back(1.5)),
-          useNativeDriver: true
-        }),
-        Animated.timing(messageOpacity, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true
-        })
-      ]).start();
-
-      const hideTimer = setTimeout(() => {
-        Animated.parallel([
-          Animated.timing(messageSlideAnim, {
-            toValue: -100,
-            duration: 400,
-            useNativeDriver: true
-          }),
-          Animated.timing(messageOpacity, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true
-          })
-        ]).start(() => {
-          setShowTip(false);
-          setMessageQueue(prev => prev.slice(1));
-          animationState.isAnimating = false;
-        });
-      }, 3000);
+  // טיפול בהודעות - גישה מפושטת
+  useEffect(() => {
+    if (showTip) {
+      console.log('Starting 2 second timer for message:', avatarMessage);
+      const timer = setTimeout(() => {
+        console.log('2 seconds passed, hiding message');
+        setShowTip(false);
+        setAvatarMessage('');
+      }, 2000);
 
       return () => {
-        clearTimeout(hideTimer);
-        animationState.isAnimating = false;
+        console.log('Cleaning up timer');
+        clearTimeout(timer);
       };
+    }
+  }, [showTip, avatarMessage]);
+
+  // טיפול בתור הודעות
+  useEffect(() => {
+    if (messageQueue.length > 0 && !showTip) {
+      console.log('Showing message from queue:', messageQueue[0]);
+      setAvatarMessage(messageQueue[0]);
+      setShowTip(true);
+      setMessageQueue(prev => prev.slice(1));
     }
   }, [messageQueue, showTip]);
 
@@ -356,32 +429,31 @@ export default function HomeScreen() {
     }
   }, [stages]);
 
-  // בדיקת מצב המשתמש והצגת טיפים רלוונטיים
-  useEffect(() => {
-    const checkUserProgress = () => {
-      const currentStage = stages.find(s => s.status === 'current');
-      if (!currentStage) return;
+  // בדיקת מצב המשתמש והצגת טיפים רלוונטיים (מושבת זמנית לבדיקה)
+  // useEffect(() => {
+  //   const checkUserProgress = () => {
+  //     const currentStage = stages.find(s => s.status === 'current');
+  //     if (!currentStage) return;
 
-      const coinsToNext = currentStage.coins - userCoins;
+  //     const coinsToNext = currentStage.coins - userCoins;
       
-      if (coinsToNext <= 20) {
-        queueMessage(AVATAR_MESSAGES.closeToNextStage);
-      } else if (userCoins < 50) {
-        queueMessage(AVATAR_MESSAGES.lowCoins);
-      }
-    };
+  //     if (coinsToNext <= 20) {
+  //       queueMessage(AVATAR_MESSAGES.closeToNextStage);
+  //     }
+  //     // הסרתי את ההודעה למטבעות נמוכים
+  //   };
 
-    checkUserProgress();
-  }, [userCoins, stages]);
+  //   checkUserProgress();
+  // }, [userCoins, stages]);
 
-  // הוספת טיפ יומי בטעינת המסך
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      queueMessage(AVATAR_MESSAGES.dailyTip);
-    }, 1000);
+  // הוספת טיפ יומי בטעינת המסך (מושבת זמנית לבדיקה)
+  // useEffect(() => {
+  //   const timeout = setTimeout(() => {
+  //     queueMessage(AVATAR_MESSAGES.dailyTip);
+  //   }, 1000);
 
-    return () => clearTimeout(timeout);
-  }, []);
+  //   return () => clearTimeout(timeout);
+  // }, []);
 
   // פונקציה לטיפול בלחיצה על שלב
   const handleStagePress = (stage: typeof stages[0], index: number) => {
@@ -411,18 +483,19 @@ export default function HomeScreen() {
       queueMessage(`עוד ${coinsNeeded} מטבעות להשלמת השלב! 💪`);
     }
 
-    // אנימציית האווטר לשלב הנבחר
+    // אנימציית האווטר לשלב הנבחר - חלקה ומרוככת
     if (stage.status !== 'locked') {
       const stagePos = getStagePosition(index);
       setIsAvatarWalking(true);
       
+      // אנימציה חלקה לאווטר
       Animated.spring(avatarPosition, {
         toValue: {
           x: stagePos.x + STAGE_SIZE / 2 - 20,
           y: stagePos.y + STAGE_SIZE / 2 - 20
         },
-        friction: 6,
-        tension: 40,
+        friction: 10, // יותר חלק
+        tension: 35, // פחות קפיצי
         useNativeDriver: true
       }).start(() => {
         setIsAvatarWalking(false);
@@ -430,20 +503,31 @@ export default function HomeScreen() {
           queueMessage('אני כאן! בוא נתקדם יחד! 🚀');
         }
       });
+
+      // סקרול חלק לשלב הנבחר
+      const targetScrollY = Math.max(0, stagePos.y - 300);
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({
+          y: targetScrollY,
+          animated: true
+        });
+      }, 100);
     }
   };
 
   // בדיקה והוספת שלבים חדשים
   useLayoutEffect(() => {
     const completedStages = stages.filter(s => s.status === 'completed').length;
+    const currentStageIndex = stages.findIndex(s => s.status === 'current');
+    
+    // הוסף שלבים חדשים כאשר המשתמש קרוב לסיום
+    if (currentStageIndex >= totalStages - 5) { // כאשר נותרו פחות מ-5 שלבים
+      setTotalStages(prev => prev + 10); // הוסף 10 שלבים נוספים
+      console.log(`הוספת 10 שלבים חדשים! סה"כ שלבים: ${totalStages + 10}`);
+    }
     
     if (completedStages !== prevCompletedStagesRef.current) {
       prevCompletedStagesRef.current = completedStages;
-      
-      if (completedStages >= totalStages - 3) {
-        setTotalStages(prev => prev + 5);
-        queueMessage('נפתחו שלבים חדשים! 🎉');
-      }
     }
 
     const currentStage = stages.find(s => s.status === 'current');
@@ -550,15 +634,6 @@ export default function HomeScreen() {
 
             return (
               <React.Fragment key={i}>
-                {confettiVisible && i === 4 && (
-                  <ConfettiCannon
-                    count={80}
-                    origin={{ x: width / 2, y: 0 }}
-                    fadeOut
-                    autoStart
-                    explosionSpeed={350}
-                  />
-                )}
                 <TouchableOpacity
                   onPress={() => handleStagePress(stage, i)}
                   style={[
@@ -708,12 +783,10 @@ export default function HomeScreen() {
 
       {/* הודעות אווטר */}
       {showTip && (
-        <Animated.View 
+        <View 
           style={[
             styles.avatarMessage,
             {
-              opacity: messageOpacity,
-              transform: [{ translateY: messageSlideAnim }],
               position: 'absolute',
               top: 0,
               left: 20,
@@ -723,7 +796,32 @@ export default function HomeScreen() {
           ]}
         >
           <Text style={styles.messageText}>{avatarMessage}</Text>
-        </Animated.View>
+        </View>
+      )}
+
+      {/* באנר מוטיבציוני */}
+      {showMotivationBanner && (
+        <View style={styles.motivationBannerOverlay}>
+          <Animated.View
+            style={[
+              styles.motivationBanner,
+              {
+                transform: [{ scale: motivationBannerScale }],
+                opacity: motivationBannerOpacity,
+              }
+            ]}
+          >
+            <View style={styles.motivationBannerContent}>
+              <Text style={styles.motivationBannerTitle}>🎉 כל הכבוד! 🎉</Text>
+              <Text style={styles.motivationBannerMessage}>{motivationMessage}</Text>
+              <View style={styles.motivationBannerEmojis}>
+                <Text style={styles.motivationBannerEmoji}>⭐</Text>
+                <Text style={styles.motivationBannerEmoji}>🌟</Text>
+                <Text style={styles.motivationBannerEmoji}>✨</Text>
+              </View>
+            </View>
+          </Animated.View>
+        </View>
       )}
     </View>
   );
@@ -906,6 +1004,68 @@ const styles = StyleSheet.create({
   },
   avatarEmoji: {
     fontSize: 40,
+    textAlign: 'center',
+  },
+  motivationBannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    zIndex: 2000,
+  },
+  motivationBanner: {
+    width: '85%',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 15,
+  },
+  motivationBannerContent: {
+    backgroundColor: '#4CAF50',
+    paddingVertical: 30,
+    paddingHorizontal: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  motivationBannerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 15,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  motivationBannerMessage: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 28,
+    marginBottom: 20,
+    fontWeight: '600',
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  motivationBannerEmojis: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+  },
+  motivationBannerEmoji: {
+    fontSize: 32,
     textAlign: 'center',
   }
 });
