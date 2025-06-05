@@ -3,16 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  Animated,
-  Dimensions,
-  Easing,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
-} from 'react-native';
+import { Animated, Dimensions, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Circle, Defs, G, Path, Stop, Svg, LinearGradient as SvgGradient, Image as SvgImage, Text as SvgText, Use } from 'react-native-svg';
 import { RootStackParamList } from '../MainNavigator';
 import { emitCoinsUpdate } from '../utils/eventEmitter';
@@ -23,6 +14,18 @@ const WHEEL_SIZE = Math.min(width * 0.9, 350);
 const SPIN_DURATION = 10000; // 10 seconds spin
 
 const PRIZES = [
+  { 
+    value: 0,
+    color: '#F6B6E6',
+    couponTitle: 'כרטיס\nלסרט',
+    icon: '🎬'  // קולנוע
+  },
+  { 
+    value: 0,
+    color: '#FFB084',
+    couponTitle: 'קילו\nגלידה',
+    icon: '🍦'  // גלידה
+  },
   { 
     value: 0,
     color: '#FFD700',
@@ -58,18 +61,6 @@ const PRIZES = [
     color: '#9FD9B3',
     couponTitle: 'ארוחת\nבוקר\nבאוריוס',
     icon: '🍪'  // עוגיה
-  },
-  { 
-    value: 0,
-    color: '#F6B6E6',
-    couponTitle: 'כרטיס\nלסרט',
-    icon: '🎬'  // קולנוע
-  },
-  { 
-    value: 0,
-    color: '#FFB084',
-    couponTitle: 'קילו\nגלידה',
-    icon: '🍦'  // גלידה
   },
 ];
 
@@ -121,10 +112,28 @@ const LuckyWheelScreen: React.FC = () => {
   const [showWinBanner, setShowWinBanner] = useState(false);
   const winBannerScale = useRef(new Animated.Value(0)).current;
   const winBannerOpacity = useRef(new Animated.Value(0)).current;
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [targetIndex, setTargetIndex] = useState(-1);
+  const [isResetting, setIsResetting] = useState(false);
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const [currentBarcode, setCurrentBarcode] = useState('');
+  const [showFreeSpinModal, setShowFreeSpinModal] = useState(false);
+  const [showCoinsModal, setShowCoinsModal] = useState(false);
+
+  // אנימציות מרגשות לזכייה
+  const wheelGlowAnim = useRef(new Animated.Value(0)).current;
+  const wheelPulseAnim = useRef(new Animated.Value(1)).current;
+  const starburstAnim = useRef(new Animated.Value(0)).current;
+  const sparkleAnim = useRef(new Animated.Value(0)).current;
+  const [showStarburst, setShowStarburst] = useState(false);
+  const [showSparkles, setShowSparkles] = useState(false);
+
 
   useEffect(() => {
     startButtonAnimations();
     loadUserCoins();
+    // מאפסים את הגלגל למצב הבסיסי כשנכנסים למסך
+    spinValue.setValue(0);
   }, []);
 
   const startButtonAnimations = () => {
@@ -209,9 +218,14 @@ const LuckyWheelScreen: React.FC = () => {
       await userManager.updateUserCoins(newCoins);
       emitCoinsUpdate(newCoins);
 
-      // מציגים את הבאנר
-      setRewardText('איזה כיף! התווספו לך 1500 מטבעות! 🎉');
-      setShowWinBanner(true);
+      // מציגים חלון מטבעות מיוחד
+      setShowCoinsModal(true);
+      startConfetti(); // הפעלת קונפטי
+      
+      // סגירת החלון אחרי 3 שניות
+      setTimeout(() => {
+        setShowCoinsModal(false);
+      }, 3000);
       
       // מפעילים את אנימציית הבאנר
       Animated.parallel([
@@ -247,7 +261,7 @@ const LuckyWheelScreen: React.FC = () => {
       });
     }
     // בדיקה מחמירה יותר לסיבוב נוסף - חייב להיות גם האינדקס הנכון, גם הכותרת הנכונה וגם האייקון הנכון
-    else if (segmentIndex === 0 && prize.couponTitle === 'סיבוב\nנוסף' && prize.icon === '🔄') {
+    else if (segmentIndex === 2 && prize.couponTitle === 'סיבוב\nנוסף' && prize.icon === '🔄') {
       setHasFreeSpins(true);
       setRewardText('זכית בסיבוב נוסף! 🎡');
       
@@ -277,6 +291,14 @@ const LuckyWheelScreen: React.FC = () => {
       const prizeText = prize.couponTitle.replace('\n', ' ');
       setRewardText(`זכית ב${prizeText}! 🎉`);
       setShowWinBanner(true);
+      startConfetti(); // הפעלת קונפטי
+      
+      // הצגת ברקוד עבור פרסים מתאימים (אינדקסים 0,1,3,5,6,7)
+      if ([0, 1, 3, 5, 6, 7].includes(segmentIndex)) {
+        setTimeout(() => {
+          showBarcodeForPrize(prize);
+        }, 2000); // 2 שניות אחרי הבאנר
+      }
       
       Animated.parallel([
         Animated.sequence([
@@ -313,7 +335,10 @@ const LuckyWheelScreen: React.FC = () => {
   };
 
   const startSpin = async () => {
-    if (isSpinning) return;
+    if (isSpinning || isResetting) return;
+    
+    // מאפסים את הגלגל למצב הבסיסי לפני כל סיבוב
+    spinValue.setValue(0);
     
     // בודקים אם יש מספיק מטבעות רק אם אין סיבוב חינם
     if (!hasFreeSpins && userCoins < 1000) {
@@ -357,17 +382,15 @@ const LuckyWheelScreen: React.FC = () => {
   const spinWheel = () => {
     // בחירת משולש רנדומלי
     const segmentIndex = Math.floor(Math.random() * PRIZES.length);
-    const segmentAngle = 360 / PRIZES.length;
+    const segmentAngle = 45; // כל סגמנט הוא 45 מעלות
     
-    // חישוב מדויק של הסיבוב
+    // חישוב מדויק של הסיבוב לפי הנוסחה החדשה
     const baseRotation = 3600; // 10 סיבובים מלאים
-    // מחשבים את הסיבוב כך שהחץ יעצור בדיוק על המשולשים
     const targetRotation = baseRotation + (segmentIndex * segmentAngle);
     
     console.log('Selected prize index:', segmentIndex);
+    console.log('Rotation calculation:', `${baseRotation} + (${segmentIndex} × ${segmentAngle}) = ${targetRotation}`);
     console.log('Selected prize:', PRIZES[segmentIndex].couponTitle);
-    
-    spinValue.setValue(0);
     Animated.timing(spinValue, {
       toValue: targetRotation,
       duration: SPIN_DURATION,
@@ -379,30 +402,19 @@ const LuckyWheelScreen: React.FC = () => {
       const prize = PRIZES[segmentIndex];
       
       // בודקים אם זה סיבוב נוסף
-      if (segmentIndex === 0 && prize.couponTitle === 'סיבוב\nנוסף') {
+      if (segmentIndex === 2 && prize.couponTitle === 'סיבוב\nנוסף') {
         console.log('Free spin awarded!');
         setHasFreeSpins(true);
-        setRewardText('זכית בסיבוב נוסף! 🎡');
+        setShowFreeSpinModal(true);
+        startConfetti(); // הפעלת קונפטי
         
-        Animated.sequence([
-          Animated.timing(fadeReward, { 
-            toValue: 1, 
-            duration: 200, 
-            useNativeDriver: true 
-          }),
-          Animated.delay(2000),
-          Animated.timing(fadeReward, { 
-            toValue: 0, 
-            duration: 300, 
-            useNativeDriver: true 
-          })
-        ]).start(() => {
-          if (hasFreeSpins) {
-            setTimeout(() => {
-              startSpin();
-            }, 500);
-          }
-        });
+        // סגירת החלון אחרי 3 שניות והתחלת סיבוב חדש
+        setTimeout(() => {
+          setShowFreeSpinModal(false);
+          setTimeout(() => {
+            startSpin();
+          }, 500);
+        }, 3000);
       }
       // בודקים אם זה 1500 מטבעות
       else if (prize.value === 1500 && prize.couponTitle === '1500\nמטבעות') {
@@ -413,9 +425,14 @@ const LuckyWheelScreen: React.FC = () => {
         userManager.updateUserCoins(newCoins);
         emitCoinsUpdate(newCoins);
 
-        // מציגים הודעת זכייה
-        setRewardText('זכית ב-1500 מטבעות! 🎉');
-        setShowWinBanner(true);
+        // מציגים חלון מטבעות מיוחד
+        setShowCoinsModal(true);
+        startConfetti(); // הפעלת קונפטי
+        
+        // סגירת החלון אחרי 3 שניות
+        setTimeout(() => {
+          setShowCoinsModal(false);
+        }, 3000);
         
         // אנימציית באנר
         Animated.parallel([
@@ -480,6 +497,7 @@ const LuckyWheelScreen: React.FC = () => {
   // עדכון כפתור הסיבוב בהתאם למצב סיבוב חינם
   const getSpinButtonText = () => {
     if (isSpinning) return 'מסתובב...';
+    if (isResetting) return 'מתאפס...';
     if (hasFreeSpins) return 'סיבוב חינם! 🎁';
     return 'סובב את הגלגל!';
   };
@@ -499,8 +517,8 @@ const LuckyWheelScreen: React.FC = () => {
             height="8"
           />
         </Defs>
-        {/* מסובבים את הגלגל כך שהמשולשים יהיו מיושרים עם החץ */}
-        <G rotation={-anglePerSegment / 2}>
+        {/* מסובבים את הגלגל כך שהחץ יהיה במרכז משולש */}
+        <G rotation={-112.5}>
           {PRIZES.map((prize, index) => {
             const angle = index * anglePerSegment;
             const angleRad = (angle * Math.PI) / 180;
@@ -578,6 +596,167 @@ const LuckyWheelScreen: React.FC = () => {
     );
   };
 
+  const startExcitingWinAnimation = () => {
+    // רטט מרגש (עם בדיקה לתמיכה)
+    try {
+      // @ts-ignore
+      Vibration.vibrate([100, 50, 100, 50, 200]);
+    } catch (error) {
+      console.log('Vibration not supported');
+    }
+    
+    // הפעלת כל האפקטים בבת אחת (ללא קונפטי)
+    setShowStarburst(true);
+    setShowSparkles(true);
+    
+    // איפוס ערכי האנימציות
+    starburstAnim.setValue(0);
+    sparkleAnim.setValue(0);
+    wheelGlowAnim.setValue(0);
+    wheelPulseAnim.setValue(1);
+    
+    // אנימציית הזוהר של הגלגל
+    Animated.sequence([
+      Animated.timing(wheelGlowAnim, {
+        toValue: 1,
+        duration: 500,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(wheelGlowAnim, {
+        toValue: 0,
+        duration: 1000,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // אנימציית פעימה של הגלגל
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(wheelPulseAnim, {
+          toValue: 1.05,
+          duration: 200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(wheelPulseAnim, {
+          toValue: 1,
+          duration: 200,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+      { iterations: 6 }
+    ).start();
+
+
+
+    // אנימציית התפרצות כוכבים
+    Animated.timing(starburstAnim, {
+      toValue: 1,
+      duration: 1500,
+      easing: Easing.out(Easing.back(1.5)),
+      useNativeDriver: true,
+    }).start(() => {
+      setShowStarburst(false);
+    });
+
+    // אנימציית נצנוצים
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(sparkleAnim, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(sparkleAnim, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+      { iterations: 8 }
+    ).start(() => {
+      setShowSparkles(false);
+    });
+  };
+
+  const startConfetti = () => {
+    startExcitingWinAnimation();
+  };
+
+  const generateBarcode = () => {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 10000);
+    return `LW${timestamp}${random}`;
+  };
+
+  const saveCouponToUser = async (prize: typeof PRIZES[0], barcode: string) => {
+    try {
+      const user = await userManager.getCurrentUser();
+      if (user) {
+        const couponData = {
+          id: parseInt(barcode.replace(/[^\d]/g, ''), 10), // המר ברקוד למספר
+          title: prize.couponTitle.replace('\n', ' '),
+          desc: prize.couponTitle.replace('\n', ' '),
+          coins: 0 // קופון זכייה - לא עלה מטבעות
+        };
+        
+        // שמור את הקופון למשתמש
+        const success = await userManager.savePurchasedCoupon(couponData);
+        if (success) {
+          console.log('Coupon saved successfully:', couponData);
+        } else {
+          console.log('Failed to save coupon');
+        }
+      }
+    } catch (error) {
+      console.log('Error saving coupon:', error);
+    }
+  };
+
+  const showBarcodeForPrize = async (prize: typeof PRIZES[0]) => {
+    const barcode = generateBarcode();
+    setCurrentBarcode(barcode);
+    setShowBarcodeModal(true);
+    await saveCouponToUser(prize, barcode);
+  };
+
+  const resetWheel = () => {
+    // מתחילים איפוס מיד אחרי הסיבוב, במקביל לבאנר
+    setIsResetting(true);
+    
+    // אנימציה שמחזירה את הגלגל למצב ההתחלתי
+    Animated.timing(spinValue, {
+      toValue: 0,
+      duration: 2000, // 2 שניות כדי שיתסיים עם הבאנר
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      setIsResetting(false);
+      setTargetIndex(-1);
+      if (selectedIndex !== 2) { // לא סיבוב נוסף (אינדקס 2)
+        setSelectedIndex(-1);
+      }
+    });
+  };
+
+  if (selectedIndex !== -1) {
+    const currentPrize = PRIZES[selectedIndex];
+    
+    if (selectedIndex === 2) { // סיבוב נוסף (אינדקס 2)
+      console.log('זכית בסיבוב נוסף!');
+      startSpin(); // הפעל סיבוב נוסף
+    } else {
+      console.log(`זכית ב-${currentPrize.couponTitle}!`);
+      resetWheel(); // מתאפסים רק אם זה לא סיבוב נוסף
+      handlePrize(currentPrize, selectedIndex);
+    }
+  }
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -629,16 +808,42 @@ const LuckyWheelScreen: React.FC = () => {
             style={[
               styles.wheel,
               {
-                transform: [{
-                  rotate: spinValue.interpolate({
-                    inputRange: [0, 360],
-                    outputRange: ['0deg', '360deg']
-                  })
-                }]
+                transform: [
+                  {
+                    rotate: spinValue.interpolate({
+                      inputRange: [0, 360],
+                      outputRange: ['0deg', '-360deg']
+                    })
+                  },
+                  { scale: wheelPulseAnim }
+                ],
+                shadowOpacity: wheelGlowAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.3, 1],
+                }),
+                shadowRadius: wheelGlowAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [6, 25],
+                }),
+                elevation: wheelGlowAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [8, 25],
+                }),
               }
             ]}
           >
             {renderWheel()}
+            
+            {/* זוהר מסביב לגלגל */}
+            <Animated.View
+              style={[
+                styles.wheelGlow,
+                {
+                  opacity: wheelGlowAnim,
+                  transform: [{ scale: wheelGlowAnim }],
+                }
+              ]}
+            />
           </Animated.View>
         </View>
 
@@ -654,11 +859,11 @@ const LuckyWheelScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.spinButton, 
-                isSpinning && styles.spinButtonDisabled,
+                (isSpinning || isResetting) && styles.spinButtonDisabled,
                 hasFreeSpins && styles.freeSpinButton
               ]}
               onPress={startSpin}
-              disabled={isSpinning}
+              disabled={isSpinning || isResetting}
             >
               <LinearGradient
                 colors={hasFreeSpins ? ['#FFD700', '#FFA500'] : ['#FF4E50', '#F9D423']}
@@ -673,9 +878,14 @@ const LuckyWheelScreen: React.FC = () => {
                     color="#FFFFFF" 
                     style={styles.spinButtonIcon}
                   />
-                  <Text style={styles.spinButtonText}>
-                    {getSpinButtonText()}
-                  </Text>
+                  <View style={styles.spinButtonTextContainer}>
+                    <Text style={styles.spinButtonText}>
+                      {getSpinButtonText()}
+                    </Text>
+                    {!hasFreeSpins && (
+                      <Text style={styles.spinCostText}>עלות סיבוב 1000 מטבעות</Text>
+                    )}
+                  </View>
                   <Icon 
                     name="star-four-points" 
                     size={32} 
@@ -798,7 +1008,175 @@ const LuckyWheelScreen: React.FC = () => {
           <Text style={styles.rewardText}>{rewardText}</Text>
         </Animated.View>
 
+        {/* חלון ברקוד */}
+        <Modal
+          visible={showBarcodeModal}
+          transparent={true}
+          animationType="fade"
+        >
+          <View style={styles.barcodeModalOverlay}>
+            <View style={styles.barcodeModalContent}>
+              <LinearGradient
+                colors={['#4CAF50', '#45A049']}
+                style={styles.barcodeModalGradient}
+              >
+                <Text style={styles.barcodeTitle}>איזה כיף!</Text>
+                <Text style={styles.barcodeSubtitle}>זכית בפרס שווה במיוחד! 🎉</Text>
+                
+                {/* ברקוד */}
+                <View style={styles.barcodeContainer}>
+                  <View style={styles.barcodeLines}>
+                    {[...Array(20)].map((_, index) => (
+                      <View 
+                        key={index} 
+                        style={[
+                          styles.barcodeLine, 
+                          { width: Math.random() > 0.5 ? 2 : 4 }
+                        ]} 
+                      />
+                    ))}
+                  </View>
+                  <Text style={styles.barcodeText}>{currentBarcode}</Text>
+                </View>
+                
+                <Text style={styles.barcodeInfo}>הברקוד נשמר בקופונים שלך</Text>
+                
+                <TouchableOpacity
+                  style={styles.barcodeCloseButton}
+                  onPress={() => setShowBarcodeModal(false)}
+                >
+                  <Text style={styles.barcodeCloseText}>סגור</Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            </View>
+          </View>
+        </Modal>
+
+        {/* חלון סיבוב נוסף */}
+        <Modal
+          visible={showFreeSpinModal}
+          transparent={true}
+          animationType="fade"
+        >
+          <View style={styles.specialModalOverlay}>
+            <View style={styles.specialModalContent}>
+              <LinearGradient
+                colors={['#FFD700', '#FFA500']}
+                style={styles.specialModalGradient}
+              >
+                <Text style={styles.specialModalIcon}>🎡</Text>
+                <Text style={styles.specialModalTitle}>איזה כיף!</Text>
+                <Text style={styles.specialModalSubtitle}>זכית בסיבוב נוסף!</Text>
+              </LinearGradient>
+            </View>
+          </View>
+        </Modal>
+
+        {/* חלון מטבעות */}
+        <Modal
+          visible={showCoinsModal}
+          transparent={true}
+          animationType="fade"
+        >
+          <View style={styles.specialModalOverlay}>
+            <View style={styles.specialModalContent}>
+              <LinearGradient
+                colors={['#4CAF50', '#45A049']}
+                style={styles.specialModalGradient}
+              >
+                <Text style={styles.specialModalIcon}>🪙</Text>
+                <Text style={styles.specialModalTitle}>מזל טוב!</Text>
+                <Text style={styles.specialModalSubtitle}>נוספו לקופה שלך</Text>
+                <Text style={styles.coinsAmountText}>1500 מטבעות!</Text>
+                <View style={styles.coinsDisplayContainer}>
+                  <Icon name="cash-multiple" size={24} color="#FFD700" />
+                  <Text style={styles.currentCoinsText}>{displayedCoins.toLocaleString()}</Text>
+                </View>
+              </LinearGradient>
+            </View>
+          </View>
+        </Modal>
+
       </LinearGradient>
+      
+
+
+      {/* התפרצות כוכבים */}
+      {showStarburst && (
+        <View style={styles.starburstContainer}>
+          {[...Array(12)].map((_, index) => {
+            const angle = (index * 30) * Math.PI / 180;
+            const radius = 120;
+            const x = Math.cos(angle) * radius;
+            const y = Math.sin(angle) * radius;
+            
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.starburstStar,
+                  {
+                    left: width / 2 + x,
+                    top: Dimensions.get('window').height / 2 + y,
+                    opacity: starburstAnim,
+                    transform: [
+                      {
+                        scale: starburstAnim.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [0, 1.5, 0.8],
+                        })
+                      },
+                      {
+                        rotate: starburstAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '360deg'],
+                        })
+                      }
+                    ]
+                  }
+                ]}
+              >
+                <Text style={styles.starburstIcon}>⭐</Text>
+              </Animated.View>
+            );
+          })}
+        </View>
+      )}
+
+      {/* נצנוצים */}
+      {showSparkles && (
+        <View style={styles.sparkleContainer}>
+          {[...Array(20)].map((_, index) => {
+            const randomX = Math.random() * width;
+            const randomY = Math.random() * Dimensions.get('window').height;
+            const randomDelay = Math.random() * 1000;
+            
+            return (
+              <Animated.View
+                key={index}
+                style={[
+                  styles.sparkle,
+                  {
+                    left: randomX,
+                    top: randomY,
+                    opacity: sparkleAnim,
+                    transform: [
+                      {
+                        scale: sparkleAnim.interpolate({
+                          inputRange: [0, 0.5, 1],
+                          outputRange: [0, 1.2, 0],
+                        })
+                      }
+                    ]
+                  }
+                ]}
+              >
+                <Text style={styles.sparkleIcon}>✨</Text>
+              </Animated.View>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 };
@@ -1100,6 +1478,206 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.3)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
+  },
+
+  barcodeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  barcodeModalContent: {
+    width: '85%',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  barcodeModalGradient: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  barcodeTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  barcodeSubtitle: {
+    fontSize: 20,
+    color: '#FFFFFF',
+    marginBottom: 30,
+    textAlign: 'center',
+  },
+  barcodeContainer: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginBottom: 20,
+    width: '100%',
+  },
+  barcodeLines: {
+    flexDirection: 'row',
+    height: 60,
+    alignItems: 'flex-end',
+    justifyContent: 'space-around',
+    width: '80%',
+    marginBottom: 10,
+  },
+  barcodeLine: {
+    backgroundColor: '#000000',
+    height: '100%',
+    marginHorizontal: 1,
+  },
+  barcodeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#000000',
+    letterSpacing: 2,
+  },
+  barcodeInfo: {
+    fontSize: 16,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  barcodeCloseButton: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  barcodeCloseText: {
+    color: '#4CAF50',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  specialModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  specialModalContent: {
+    width: '80%',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  specialModalGradient: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  specialModalIcon: {
+    fontSize: 60,
+    marginBottom: 20,
+  },
+  specialModalTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  specialModalSubtitle: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  coinsAmountText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  coinsDisplayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 15,
+    gap: 10,
+  },
+  currentCoinsText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  spinCostContainer: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  spinButtonTextContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinCostText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.9,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+
+  wheelGlow: {
+    position: 'absolute',
+    top: -20,
+    left: -20,
+    right: -20,
+    bottom: -20,
+    borderRadius: WHEEL_SIZE / 2 + 20,
+    backgroundColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 30,
+    elevation: 20,
+  },
+  starburstContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1001,
+    pointerEvents: 'none',
+  },
+  starburstStar: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  starburstIcon: {
+    fontSize: 24,
+    textShadowColor: '#FFD700',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  sparkleContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 1002,
+    pointerEvents: 'none',
+  },
+  sparkle: {
+    position: 'absolute',
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sparkleIcon: {
+    fontSize: 16,
+    textShadowColor: '#FFFFFF',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 5,
   },
 });
 

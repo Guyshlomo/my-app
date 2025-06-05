@@ -268,5 +268,29 @@ export const userManager = {
       console.error('Error getting purchased coupons:', error);
       return [];
     }
+  },
+
+  // פונקציה למחיקת קופון לגמרי
+  async deleteCoupon(couponId: number): Promise<boolean> {
+    try {
+      const currentUser = await this.getCurrentUser();
+      if (!currentUser || !currentUser.purchasedCoupons) return false;
+
+      // מחיקת הקופון מהרשימה
+      const updatedCoupons = currentUser.purchasedCoupons.filter(coupon =>
+        coupon.id !== couponId
+      );
+
+      const updatedUser = {
+        ...currentUser,
+        purchasedCoupons: updatedCoupons
+      };
+
+      await this.saveCurrentUser(updatedUser);
+      return true;
+    } catch (error) {
+      console.error('Error deleting coupon:', error);
+      return false;
+    }
   }
 }; 

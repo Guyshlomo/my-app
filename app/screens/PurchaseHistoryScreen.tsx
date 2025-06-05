@@ -2,15 +2,15 @@ import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Dimensions,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  ActivityIndicator,
+  Dimensions,
+  Modal,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { userManager } from '../utils/userManager';
@@ -25,13 +25,14 @@ interface PurchasedCoupon {
   coins: number;
   purchaseDate: string;
   barcode: string;
-  isUsed: boolean;
 }
 
 function PurchaseHistoryScreen() {
   const navigation = useNavigation();
   const [purchases, setPurchases] = useState<PurchasedCoupon[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const [selectedCoupon, setSelectedCoupon] = useState<PurchasedCoupon | null>(null);
 
   useEffect(() => {
     loadPurchaseHistory();
@@ -47,8 +48,7 @@ function PurchaseHistoryScreen() {
           desc: coupon.desc,
           coins: coupon.coins,
           purchaseDate: coupon.purchaseDate,
-          barcode: `coupon-${coupon.id}-${Date.now()}`,
-          isUsed: coupon.isUsed
+          barcode: `coupon-${coupon.id}-${Date.now()}`
         })));
       }
     } catch (error) {
@@ -58,21 +58,22 @@ function PurchaseHistoryScreen() {
     }
   };
 
-  const handleUseCoupon = async (couponId: number) => {
+  const showCouponBarcode = (coupon: PurchasedCoupon) => {
+    setSelectedCoupon(coupon);
+    setShowBarcodeModal(true);
+  };
+
+  const deleteCoupon = async (couponId: number) => {
     try {
-      const success = await userManager.markCouponAsUsed(couponId);
+      const success = await userManager.deleteCoupon(couponId);
       if (success) {
-        // עדכון הרשימה המקומית
+        // הסרת הקופון מהרשימה המקומית
         setPurchases(prevPurchases =>
-          prevPurchases.map(purchase =>
-            purchase.id === couponId
-              ? { ...purchase, isUsed: true }
-              : purchase
-          )
+          prevPurchases.filter(purchase => purchase.id !== couponId)
         );
       }
     } catch (error) {
-      console.error('Error marking coupon as used:', error);
+      console.error('Error deleting coupon:', error);
     }
   };
 
@@ -116,49 +117,85 @@ function PurchaseHistoryScreen() {
               {purchases.map((purchase) => (
                 <View
                   key={`${purchase.id}-${purchase.purchaseDate}`}
-                  style={[
-                    styles.purchaseCard,
-                    purchase.isUsed && styles.usedPurchaseCard
-                  ]}
+                  style={styles.purchaseCard}
                 >
                   <View style={styles.purchaseHeader}>
-                    <Text style={styles.purchaseTitle}>{purchase.title}</Text>
                     <Text style={styles.purchaseDate}>
                       {formatDate(purchase.purchaseDate)}
                     </Text>
+                    <Text style={styles.purchaseTitle}>{purchase.title}</Text>
                   </View>
                   
                   <Text style={styles.purchaseDesc}>{purchase.desc}</Text>
-                  
-                  <View style={styles.coinContainer}>
-                    <Text style={styles.coinText}>{purchase.coins}</Text>
-                    <Image
-                      source={require('../../assets/images/coin.png')}
-                      style={styles.coinIcon}
-                      resizeMode="contain"
-                    />
-                  </View>
 
-                  {purchase.isUsed ? (
-                    <View style={styles.usedStamp}>
-                      <Text style={styles.usedStampText}>✓ קופון זה מומש</Text>
+                  <View style={styles.qrContainer}>
+                    <QRCode
+                      value={purchase.barcode}
+                      size={QR_SIZE}
+                      backgroundColor="white"
+                    />
+                    <Text style={styles.qrText}>הצג בקופה למימוש</Text>
+                    
+                    <View style={styles.buttonsContainer}>
+                      <TouchableOpacity
+                        style={styles.deleteButton}
+                        onPress={() => deleteCoupon(purchase.id)}
+                      >
+                        <Text style={styles.deleteButtonText}>🗑️ הסרת הקופון</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        style={styles.useCouponButton}
+                        onPress={() => showCouponBarcode(purchase)}
+                      >
+                        <Text style={styles.useCouponButtonText}>✓ מימוש הקופון בקופה</Text>
+                      </TouchableOpacity>
                     </View>
-                  ) : (
-                    <View style={styles.qrContainer}>
-                      <QRCode
-                        value={purchase.barcode}
-                        size={QR_SIZE}
-                        backgroundColor="white"
-                      />
-                      <Text style={styles.qrText}>הצג בקופה למימוש</Text>
-                    </View>
-                  )}
+                  </View>
                 </View>
               ))}
             </ScrollView>
           )}
         </SafeAreaView>
       </LinearGradient>
+
+      {/* מודל הברקוד */}
+      <Modal
+        visible={showBarcodeModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowBarcodeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {selectedCoupon?.title}
+              </Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setShowBarcodeModal(false)}
+              >
+                <Text style={styles.modalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalQrContainer}>
+              {selectedCoupon && (
+                <QRCode
+                  value={selectedCoupon.barcode}
+                  size={250}
+                  backgroundColor="white"
+                />
+              )}
+            </View>
+            
+            <Text style={styles.modalDescription}>
+              הצג את הברקוד בקופה למימוש ההטבה
+            </Text>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -252,6 +289,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2D3748',
     flex: 1,
+    textAlign: 'right',
   },
   purchaseDate: {
     fontSize: 14,
@@ -262,7 +300,8 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#4A5568',
     marginBottom: 16,
-    alignSelf: 'flex-start',
+    alignSelf: 'flex-end',
+    textAlign: 'right',
   },
   coinContainer: {
     flexDirection: 'row',
@@ -307,6 +346,115 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#718096',
     fontWeight: '500',
+  },
+  buttonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginTop: 16,
+    gap: 12,
+  },
+  useCouponButton: {
+    backgroundColor: '#38A169',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    flex: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  useCouponButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  deleteButton: {
+    backgroundColor: '#E53E3E',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    flex: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  deleteButtonText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    minWidth: 320,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    flex: 1,
+    textAlign: 'center',
+  },
+  modalCloseButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#E2E8F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCloseText: {
+    fontSize: 18,
+    color: '#4A5568',
+    fontWeight: 'bold',
+  },
+  modalQrContainer: {
+    padding: 20,
+    backgroundColor: '#F7FAFC',
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  modalDescription: {
+    fontSize: 16,
+    color: '#4A5568',
+    textAlign: 'center',
+    marginTop: 10,
   },
 });
 
