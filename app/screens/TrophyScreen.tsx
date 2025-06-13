@@ -30,10 +30,12 @@ type RootStackParamList = {
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
+type UserWithTasks = User & { tasksCompleted?: number };
+
 export default function TrophyScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<UserWithTasks | null>(null);
+  const [allUsers, setAllUsers] = useState<UserWithTasks[]>([]);
   const [showConfetti, setShowConfetti] = useState(false);
   const [previousRank, setPreviousRank] = useState(0);
   const [confettiKey, setConfettiKey] = useState(0);
@@ -61,8 +63,8 @@ export default function TrophyScreen() {
 
   const loadData = async () => {
     const user = await userManager.getCurrentUser();
-    const users = await userManager.getAllUsers();
-    const sortedUsers = users.sort((a, b) => b.coins - a.coins);
+    const users = await userManager.getAllUsers() as UserWithTasks[];
+    const sortedUsers = users.sort((a, b) => (b.tasksCompleted || 0) - (a.tasksCompleted || 0));
     
     if (user) {
       setCurrentUser(user);
@@ -113,7 +115,7 @@ export default function TrophyScreen() {
     return () => clearInterval(interval);
   }, []);
 
-  const getUserRank = (user: User) => {
+  const getUserRank = (user: UserWithTasks) => {
     return allUsers.findIndex(u => u.id === user.id) + 1;
   };
 
@@ -165,7 +167,9 @@ export default function TrophyScreen() {
           <View style={styles.coinsContainer}>
             <Text style={styles.coinsEmoji}>✨</Text>
             <Text style={styles.coinsText}>
-              צברת <Text style={styles.coinsNumber}>{userCoins.toLocaleString()}</Text> מטבעות
+              {`צברת `}
+              <Text style={styles.coinsNumber}>{currentUser?.tasksCompleted || 0}</Text>
+              {` התנדבויות`}
             </Text>
             <Text style={styles.congratsText}>כל הכבוד! המשך כך! 🎉</Text>
           </View>
@@ -204,7 +208,7 @@ export default function TrophyScreen() {
                 )}
                 <View style={styles.userDetails}>
                   <Text style={styles.userName}>{`${user.firstName} ${user.lastName}`}</Text>
-                  <Text style={styles.userStats}>{`${user.coins} מטבעות`}</Text>
+                  <Text style={styles.userStats}>{`${user.tasksCompleted || 0} התנדבויות`}</Text>
                 </View>
               </View>
             </TouchableOpacity>

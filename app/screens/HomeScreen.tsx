@@ -110,17 +110,25 @@ const STAGE_AVATARS = {
   LEGENDARY: ['🌈', '✨', '🔮', '💎', '🌠'] // שלבים 16+
 };
 
+// הוספת טיפוס UserWithTasks
+type UserWithTasks = User & {
+  tasksCompleted?: number;
+  currentLevel?: number;
+};
+
+// הוספת קבוע totalStages
+const totalStages = 50; // מספר השלבים הכולל
+
 export default function HomeScreen() {
   const navigation = useNavigation<NavigationProp>();
   const scrollViewRef = useRef<ScrollView | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserWithTasks | null>(null);
   const [userCoins, setUserCoins] = React.useState(0);
   const [showMotivationBanner, setShowMotivationBanner] = useState(false);
   const [motivationMessage, setMotivationMessage] = useState('');
   const [isAvatarWalking, setIsAvatarWalking] = useState(false);
   const [avatarMessage, setAvatarMessage] = useState('');
   const [showTip, setShowTip] = useState(false);
-  const [totalStages, setTotalStages] = useState(50); // התחל עם 50 שלבים במקום 15
   const [currentAvatar, setCurrentAvatar] = useState('🐣');
   const avatarPosition = React.useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const lastProgress = useRef(0);
@@ -148,8 +156,6 @@ export default function HomeScreen() {
       removeCoinsUpdateListener(coinsUpdateHandler);
     };
   }, []);
-
-
 
   const loadUserData = async () => {
     const user = await userManager.getCurrentUser();
@@ -195,15 +201,16 @@ export default function HomeScreen() {
     return STAGE_AVATARS.LEGENDARY[(stageNumber - 16) % STAGE_AVATARS.LEGENDARY.length];
   };
 
-  // יצירת מערך שלבים דינמי
+  // עדכון יצירת מערך השלבים
   const stages = React.useMemo(() => Array.from({ length: totalStages }, (_, i) => {
     const number = i + 1;
-    const requiredCoins = number * 100;
+    const tasksRequired = number * 10;
     let status: 'completed' | 'current' | 'locked';
     
-    if (userCoins >= requiredCoins) {
+    const tasksCompleted = currentUser?.tasksCompleted || 0;
+    if (tasksCompleted >= tasksRequired) {
       status = 'completed';
-    } else if (userCoins >= i * 100) {
+    } else if (tasksCompleted >= i * 10) {
       status = 'current';
     } else {
       status = 'locked';
@@ -211,11 +218,11 @@ export default function HomeScreen() {
     
     return {
       number,
-      coins: requiredCoins,
+      tasksRequired,
       status,
       avatar: getAvatarForStage(number)
     };
-  }), [userCoins, totalStages]);
+  }), [currentUser?.tasksCompleted, totalStages]);
 
   function getStagePosition(index: number) {
     const leftX = horizontalPadding;
@@ -475,11 +482,11 @@ export default function HomeScreen() {
 
     // הצגת מידע רלוונטי בהתאם למצב השלב
     if (stage.status === 'locked') {
-      queueMessage(`נדרשים ${stage.coins} מטבעות לפתיחת השלב הזה! 🔒`);
+      queueMessage(`נדרשים ${stage.tasksRequired} מטבעות לפתיחת השלב הזה! 🔒`);
     } else if (stage.status === 'completed') {
       queueMessage('כל הכבוד! השלמת את השלב הזה! 🌟');
     } else {
-      const coinsNeeded = stage.coins - userCoins;
+      const coinsNeeded = stage.tasksRequired - (currentUser?.tasksCompleted || 0);
       queueMessage(`עוד ${coinsNeeded} מטבעות להשלמת השלב! 💪`);
     }
 
@@ -522,7 +529,6 @@ export default function HomeScreen() {
     
     // הוסף שלבים חדשים כאשר המשתמש קרוב לסיום
     if (currentStageIndex >= totalStages - 5) { // כאשר נותרו פחות מ-5 שלבים
-      setTotalStages(prev => prev + 10); // הוסף 10 שלבים נוספים
       console.log(`הוספת 10 שלבים חדשים! סה"כ שלבים: ${totalStages + 10}`);
     }
     
@@ -542,42 +548,118 @@ export default function HomeScreen() {
     }
   }, [stages, totalStages, queueMessage]);
 
+  // Update the function that calculates the avatar position
+  const TASKS_PER_STAGE = 10;
+
+  function getAvatarPosition(tasksCompleted: number, getStagePosition: (index: number) => {x: number, y: number}) {
+    const stageIndex = Math.floor(tasksCompleted / TASKS_PER_STAGE);
+    const progressInStage = (tasksCompleted % TASKS_PER_STAGE) / TASKS_PER_STAGE;
+    const currentStagePos = getStagePosition(stageIndex);
+    const nextStagePos = getStagePosition(stageIndex + 1);
+    if (!nextStagePos) return currentStagePos;
+    // Linear interpolation between current and next stage
+    return {
+      x: currentStagePos.x + (nextStagePos.x - currentStagePos.x) * progressInStage,
+      y: currentStagePos.y + (nextStagePos.y - currentStagePos.y) * progressInStage,
+    };
+  }
+
+  // Animated value for progress
+  const progressAnim = useRef(new Animated.Value(((currentUser?.tasksCompleted || 0) % 10) / 10)).current;
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: ((currentUser?.tasksCompleted || 0) % 10) / 10,
+      duration: 600,
+      useNativeDriver: false,
+    }).start();
+  }, [currentUser?.tasksCompleted]);
+
+  // Add new function to advance volunteer tasks
+  const advanceVolunteerTasks = async () => {
+    if (!currentUser) return;
+    
+    const updatedUser = {
+      ...currentUser,
+      tasksCompleted: (currentUser.tasksCompleted || 0) + 1,
+      coins: (currentUser.coins || 0) + 10
+    };
+    
+    await userManager.saveCurrentUser(updatedUser);
+    setCurrentUser(updatedUser);
+    setUserCoins(updatedUser.coins);
+  };
+
+  // Add new function to reset progress
+  const resetProgress = async () => {
+    if (!currentUser) return;
+    
+    const updatedUser = {
+      ...currentUser,
+      tasksCompleted: 0,
+      coins: 0
+    };
+    
+    await userManager.saveCurrentUser(updatedUser);
+    setCurrentUser(updatedUser);
+    setUserCoins(0);
+  };
+
   return (
     <View style={styles.wrapper}>
-      {/* באנר עליון קבוע */}
       <View style={styles.topBanner}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'flex-start' }}>
-          <Image 
-            source={{ uri: currentUser?.profileImage }} 
-            style={styles.profileImageLarge}
-            defaultSource={require('../../assets/images/icon.png')}
+        <View style={styles.topBannerRow}>
+          <Image
+            source={{ uri: currentUser?.profileImage || 'https://via.placeholder.com/40' }}
+            style={styles.bannerProfileImage}
           />
-          <View style={{ marginLeft: 10 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#222' }}>
-              {`שלום, ${currentUser?.firstName || 'אורח'}!`}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
-              <Image source={require('../../assets/images/coin.png')} style={{ width: 20, height: 20, marginRight: 4 }} />
-              <Text style={{ fontSize: 15, color: '#2D5DC6', fontWeight: 'bold' }}>{`יש לך ${animatedCoins} מטבעות`}</Text>
-            </View>
-            <Text onPress={handleAddCoins} style={{ color: '#2D5DC6', fontSize: 13, marginTop: 4, textDecorationLine: 'underline' }}>
-              + הוסף 20 מטבעות (הדגמה)
-            </Text>
+          <Text style={styles.bannerName}>{`שלום, ${(currentUser?.firstName || '') + (currentUser?.lastName ? ' ' + currentUser.lastName : '') || 'משתמש'}`}</Text>
+        </View>
+        <View style={styles.bannerStatsRow}>
+          <View style={styles.bannerStatItem}>
+            <Text style={styles.bannerStatIcon}>🤝</Text>
+            <Text style={styles.bannerStatValue}>{currentUser?.tasksCompleted || 0}</Text>
+            <Text style={styles.bannerStatLabel}>התנדבויות</Text>
+          </View>
+          <View style={styles.bannerStatDivider} />
+          <View style={styles.bannerStatItem}>
+            <Text style={styles.bannerStatIcon}>🪙</Text>
+            <Text style={styles.bannerStatValue}>{currentUser?.coins || 0}</Text>
+            <Text style={styles.bannerStatLabel}>מטבעות</Text>
           </View>
         </View>
+        {/* Progress Bar inside top banner */}
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarBackground}>
+            <View style={[styles.progressBarFill, { width: `${((currentUser?.tasksCompleted || 0) % 10) * 10}%` }]} />
+            <Text style={styles.progressBarText}>{`${(currentUser?.tasksCompleted || 0) % 10}/10`}</Text>
+          </View>
+          <Text style={styles.motivationProgressSubtext}>
+            {`סיימת ${(currentUser?.tasksCompleted || 0) % 10} מתוך 10 התנדבויות לשלב הבא!`}
+          </Text>
+        </View>
+      </View>
+      
+      {/* Add control buttons */}
+      <View style={styles.controlButtons}>
+        <TouchableOpacity 
+          style={styles.controlButton}
+          onPress={advanceVolunteerTasks}
+        >
+          <Text style={styles.controlButtonText}>התקדם בהתנדבות</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity 
+          style={[styles.controlButton, styles.resetButton]}
+          onPress={resetProgress}
+        >
+          <Text style={styles.controlButtonText}>אפס התקדמות</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* תוכן גולל */}
-      <ScrollView 
+      <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
-        contentContainerStyle={{
-          paddingBottom: BOTTOM_BANNER_HEIGHT + BOTTOM_PADDING,
-          minHeight: verticalGap * totalStages + BOTTOM_PADDING + INITIAL_STAGE_OFFSET
-        }}
-        showsVerticalScrollIndicator={true}
-        bounces={true}
-        scrollEventThrottle={16}
+        contentContainerStyle={styles.contentContainer}
       >
         <View style={styles.stagesContainer}>
           {stages.slice(0, -1).map((_, i) => {
@@ -667,15 +749,15 @@ export default function HomeScreen() {
                 {/* כמות מטבעות מתחת לשלבים */}
                 <View style={{
                   position: 'absolute',
-                  left: x + STAGE_SIZE / 2 - 32,
+                  left: x + STAGE_SIZE / 2 - 60,
                   top: y + STAGE_SIZE + 2,
-                  width: 64,
+                  width: 120,
                   alignItems: 'center'
                 }}>
                   <View style={{
                     backgroundColor: stage.status === 'locked' ? '#444' : stage.status === 'current' ? '#f1c40f' : '#2ecc71',
                     borderRadius: 8,
-                    paddingHorizontal: 8,
+                    paddingHorizontal: 24,
                     paddingVertical: 2,
                     shadowColor: '#000',
                     shadowOpacity: 0.12,
@@ -685,9 +767,10 @@ export default function HomeScreen() {
                     <Text style={{
                       color: 'white',
                       fontWeight: 'bold',
-                      fontSize: 11
+                      fontSize: 11,
+                      textAlign: 'center',
                     }}>
-                      {`${i * 100} מטבעות`}
+                      {`${i * 10} התנדבויות`}
                     </Text>
                   </View>
                 </View>
@@ -700,25 +783,19 @@ export default function HomeScreen() {
             const currentIdx = stages.findIndex(s => s.status === 'current');
             if (currentIdx === -1) return null;
 
-            const fromPos = getStagePosition(currentIdx);
-            const toPos = getStagePosition(currentIdx + 1);
-            const direction = toPos.x > fromPos.x ? 'right' : 'left';
+            const avatarPos = getAvatarPosition(currentUser?.tasksCompleted || 0, getStagePosition);
 
             return (
               <Animated.View
-                style={{
-                  position: 'absolute',
-                  transform: [
-                    { translateX: avatarPosition.x },
-                    { translateY: avatarPosition.y },
-                    { scaleX: direction === 'left' ? -1 : 1 }
-                  ],
-                  zIndex: 30
-                }}
+                style={[
+                  styles.avatar,
+                  {
+                    left: avatarPos.x,
+                    top: avatarPos.y,
+                  },
+                ]}
               >
-                <View style={styles.avatarContainer}>
-                  <Text style={styles.avatarEmoji}>{currentAvatar}</Text>
-                </View>
+                <Text style={styles.avatarEmoji}>{currentAvatar}</Text>
               </Animated.View>
             );
           })()}
@@ -798,31 +875,6 @@ export default function HomeScreen() {
           <Text style={styles.messageText}>{avatarMessage}</Text>
         </View>
       )}
-
-      {/* באנר מוטיבציוני */}
-      {showMotivationBanner && (
-        <View style={styles.motivationBannerOverlay}>
-          <Animated.View
-            style={[
-              styles.motivationBanner,
-              {
-                transform: [{ scale: motivationBannerScale }],
-                opacity: motivationBannerOpacity,
-              }
-            ]}
-          >
-            <View style={styles.motivationBannerContent}>
-              <Text style={styles.motivationBannerTitle}>🎉 כל הכבוד! 🎉</Text>
-              <Text style={styles.motivationBannerMessage}>{motivationMessage}</Text>
-              <View style={styles.motivationBannerEmojis}>
-                <Text style={styles.motivationBannerEmoji}>⭐</Text>
-                <Text style={styles.motivationBannerEmoji}>🌟</Text>
-                <Text style={styles.motivationBannerEmoji}>✨</Text>
-              </View>
-            </View>
-          </Animated.View>
-        </View>
-      )}
     </View>
   );
 }
@@ -838,35 +890,74 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     paddingBottom: BOTTOM_BANNER_HEIGHT + BOTTOM_PADDING,
-    minHeight: verticalGap * 15 + BOTTOM_PADDING + INITIAL_STAGE_OFFSET,
+    minHeight: verticalGap * totalStages + BOTTOM_PADDING + INITIAL_STAGE_OFFSET,
   },
   stagesContainer: {
     flex: 1,
     position: 'relative',
   },
   topBanner: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
     width: '100%',
-    height: 120,
     backgroundColor: '#FEF6DA',
+    paddingTop: 40,
+    paddingBottom: 24,
+    paddingHorizontal: 20,
+    borderBottomWidth: 0,
+    shadowColor: 'transparent',
+  },
+  topBannerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingTop: 60,
-    zIndex: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.1)',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 5,
+    justifyContent: 'space-between',
+    marginBottom: 16,
+    marginTop: 8,
+  },
+  bannerName: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#222',
+    marginLeft: 10,
+  },
+  bannerProfileImage: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#eee',
+  },
+  bannerStatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 24,
+    backgroundColor: 'transparent',
+  },
+  bannerStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  bannerStatIcon: {
+    fontSize: 20,
+    marginRight: 2,
+  },
+  bannerStatValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2D5DC6',
+    marginHorizontal: 2,
+  },
+  bannerStatLabel: {
+    fontSize: 15,
+    color: '#444',
+    marginLeft: 2,
+  },
+  bannerStatDivider: {
+    width: 1,
+    height: 24,
+    backgroundColor: '#E0E0E0',
+    marginHorizontal: 16,
   },
   bottomBannerContainer: {
     position: 'absolute',
@@ -934,16 +1025,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     resizeMode: 'contain',
-  },
-  profileImageLarge: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
-    borderWidth: 3,
-    borderColor: '#f1c40f',
-    marginLeft: 0,
-    marginRight: 0,
-    backgroundColor: '#fff',
   },
   stage: {
     position: 'absolute',
@@ -1067,5 +1148,109 @@ const styles = StyleSheet.create({
   motivationBannerEmoji: {
     fontSize: 32,
     textAlign: 'center',
-  }
+  },
+  motivationProgressBanner: {
+    backgroundColor: '#D1FAE5', // lighter green
+    borderRadius: 20,
+    marginHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  motivationProgressIcon: {
+    fontSize: 28,
+    marginBottom: 2,
+  },
+  motivationProgressText: {
+    color: '#065F46',
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  motivationProgressSubtext: {
+    color: '#047857',
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  avatar: {
+    width: 54,
+    height: 54,
+    position: 'absolute',
+    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 27,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  avatarEmoji: {
+    fontSize: 32,
+  },
+  controlButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  controlButton: {
+    backgroundColor: '#34D399',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  resetButton: {
+    backgroundColor: '#EF4444',
+  },
+  controlButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  progressBarContainer: {
+    width: '100%',
+    alignItems: 'center',
+    marginVertical: 8,
+  },
+  progressBarBackground: {
+    width: '70%',
+    height: 10,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 6,
+    overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  progressBarFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#34D399',
+    borderRadius: 6,
+    height: '100%',
+    zIndex: 1,
+  },
+  progressBarText: {
+    color: '#065F46',
+    fontWeight: 'bold',
+    fontSize: 11,
+    textAlign: 'center',
+    zIndex: 2,
+  },
 });
