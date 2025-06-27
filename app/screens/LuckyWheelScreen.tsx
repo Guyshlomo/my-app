@@ -294,20 +294,13 @@ const LuckyWheelScreen: React.FC = () => {
     // כל פרס אחר
     else {
       const prizeText = prize.couponTitle.replace('\n', ' ');
-      setRewardText(`זכית ב${prizeText}! 🎉`);
+      setRewardText('איזה כיף! זכית בקופון שווה במיוחד! 🎁\nהוא מחכה לך ב"קופונים שלי"');
       setShowWinBanner(true);
-      startConfetti(); // הפעלת קונפטי
-      
-      // הצגת ברקוד עבור פרסים מתאימים (כל הפרסים חוץ מסיבוב נוסף ומטבעות)
-      if (![2, 4].includes(segmentIndex)) {
-        console.log('🎟️ Showing barcode for prize:', prize.couponTitle, 'at index:', segmentIndex);
-        setTimeout(() => {
-          showBarcodeForPrize(prize);
-        }, 2000); // 2 שניות אחרי הבאנר
-      } else {
-        console.log('🚫 No barcode for prize:', prize.couponTitle, 'at index:', segmentIndex);
-      }
-      
+      startConfetti();
+      // שמירת הקופון במסד הנתונים
+      const barcode = generateBarcode();
+      await saveCouponToUser(prize, barcode);
+      // הצגת באנר 3 שניות ואז פתיחת מודל ברקוד
       Animated.parallel([
         Animated.sequence([
           Animated.spring(winBannerScale, {
@@ -338,6 +331,9 @@ const LuckyWheelScreen: React.FC = () => {
         ])
       ]).start(() => {
         setShowWinBanner(false);
+        setCurrentBarcode(barcode);
+        setShowBarcodeModal(true);
+        setCurrentPrize(prize);
       });
     }
   };

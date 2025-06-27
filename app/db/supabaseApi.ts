@@ -905,6 +905,54 @@ export async function getAllUserVolunteerRegistrations(): Promise<VolunteerRegis
   }
 }
 
+// ===== COUPON FUNCTIONS =====
+
+export async function getAllCoupons() {
+  try {
+    console.log('🎟️ [Supabase] Getting all coupons from coupons table');
+    
+    const { data, error } = await supabase
+      .from('coupons')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('❌ [Supabase] Get coupons error:', error);
+      return [];
+    }
+
+    console.log('✅ [Supabase] Coupons loaded:', data?.length || 0);
+    console.log('✅ [Supabase] Coupons data:', data);
+
+    // המרה לפורמט הנדרש עבור GiftScreen
+    const formattedCoupons = (data || []).map(coupon => ({
+      id: coupon.id,
+      title: coupon.title,
+      desc: coupon.description,
+      coins: coupon.coins,
+      color: coupon.color
+    }));
+
+    return formattedCoupons;
+  } catch (error) {
+    console.error('❌ [Supabase] Get coupons failed:', error);
+    return [];
+  }
+}
+
+export async function getLuckyWheelCoupons() {
+  const { data, error } = await supabase
+    .from('luckywheel_coupons')
+    .select('*')
+    .order('order_index', { ascending: true });
+
+  if (error) {
+    console.error('❌ [Supabase] Get lucky wheel coupons error:', error);
+    return [];
+  }
+  return data;
+}
+
 // ===== COUPON/PURCHASE FUNCTIONS =====
 
 // Save purchased coupon
@@ -1022,6 +1070,26 @@ export async function getUserPurchasedCoupons(userId: string) {
     return [];
   } catch (error) {
     console.error('❌ [Supabase] Get user coupons failed:', error);
+    return [];
+  }
+}
+
+// Get current user's purchased coupons
+export async function getCurrentUserPurchasedCoupons() {
+  try {
+    console.log('🎟️ [Supabase] Getting current user purchased coupons');
+    
+    const user = await getCurrentUserFromSupabase();
+    if (!user) {
+      console.error('❌ [Supabase] No current user found');
+      return [];
+    }
+    
+    const coupons = await getUserPurchasedCoupons(user.id);
+    console.log('✅ [Supabase] Current user coupons loaded:', coupons.length);
+    return coupons;
+  } catch (error) {
+    console.error('❌ [Supabase] Get current user coupons failed:', error);
     return [];
   }
 }

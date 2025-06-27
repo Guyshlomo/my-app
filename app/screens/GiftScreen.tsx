@@ -19,6 +19,7 @@ import {
   Easing,
   Image,
   Modal,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -29,7 +30,7 @@ import {
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import QRCode from 'react-native-qrcode-svg';
-import { getCurrentUserFromSupabase, savePurchasedCoupon, updateUserInSupabase } from '../db/supabaseApi';
+import { getCurrentUserFromSupabase, savePurchasedCoupon, updateUserInSupabase, getAllCoupons, getCurrentUserPurchasedCoupons } from '../db/supabaseApi';
 import { addCoinsUpdateListener, removeCoinsUpdateListener } from '../utils/eventEmitter';
 import { navigationOptimizer } from '../utils/navigationOptimizer';
 
@@ -66,16 +67,6 @@ interface CouponData {
   coins: number;
   color: string;
 }
-
-const COUPONS: CouponData[] = [
-  { id: 1, title: '🍩 מאפה בקפה צ׳לה', desc: 'בקניית קפה', coins: 170, color: '#FF9B9B' },
-  { id: 2, title: '🍟 צ׳יפס במתנה בחומוס של טחינה', desc: 'בקניית מנת חומוס', coins: 150, color: '#FFB084' },
-  { id: 5, title: '🥨 מאפה לבחירה באוריוס', desc: 'בקניית קפה', coins: 200, color: '#90CDF4' },
-  { id: 6, title: '🥤 שתייה במתנה בדפקא', desc: 'בקניית ארוחת המבורגר', coins: 180, color: '#F6B6E6' },
-  { id: 7, title: '☕ קפה אצל דן דן', desc: 'בקניית כריך או מאפה', coins: 160, color: '#9FD9B3' },
-];
-
-
 
 function CouponCard({ 
   coupon, 
@@ -133,6 +124,33 @@ function CouponCard({
   );
 }
 
+function PurchasedCouponCard({ 
+  coupon, 
+  onPress 
+}: { 
+  coupon: any; 
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity 
+      style={styles.purchasedCouponContainer}
+      onPress={onPress}
+      activeOpacity={0.9}
+    >
+      <View style={styles.purchasedCouponContent}>
+        <Text style={styles.purchasedCouponTitle}>{coupon.coupon_title}</Text>
+        <Text style={styles.purchasedCouponDescription}>{coupon.coupon_description}</Text>
+        <View style={styles.purchasedCouponFooter}>
+          <Text style={styles.purchasedCouponBarcode}>ברקוד: {coupon.barcode}</Text>
+          <Text style={styles.purchasedCouponStatus}>
+            {coupon.is_used ? '🔄 בשימוש' : '✅ זמין'}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
 function GiftScreen() {
   const navigation = useNavigation<NavigationProp>();
   const confettiLeftRef = useRef<ConfettiCannon>(null);
@@ -144,7 +162,7 @@ function GiftScreen() {
   const [rewardText, setRewardText] = useState('');
   const [fadeReward] = useState(new Animated.Value(0));
   const [modalAnimation] = useState(new Animated.Value(0));
-  const [fadeAnims] = useState(COUPONS.map(() => new Animated.Value(0)));
+  const [fadeAnims, setFadeAnims] = useState<Animated.Value[]>([]);
   const [bgColors] = useState([
     ['#FFDEE9', '#B5FFFC'],
     ['#FEE140', '#FA709A'],
@@ -159,6 +177,9 @@ function GiftScreen() {
   const errorAnim = useRef(new Animated.Value(-100)).current;
   const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
   const errorModalAnimation = useRef(new Animated.Value(0)).current;
+  const [coupons, setCoupons] = useState<CouponData[]>([]);
+  const [purchasedCoupons, setPurchasedCoupons] = useState<any[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   // טעינת נתוני המשתמש
   useEffect(() => {
@@ -177,10 +198,60 @@ function GiftScreen() {
     };
   }, []);
 
+  // טעינת קופונים מה-DB
+  useEffect(() => {
+    fetchCoupons();
+  }, []);
+
+  const fetchCoupons = async () => {
+    try {
+      console.log('🔍 [GiftScreen] Starting to fetch coupons...');
+      console.log('🔍 [GiftScreen] getAllCoupons function:', typeof getAllCoupons);
+      console.log('🔍 [GiftScreen] getAllCoupons function:', getAllCoupons);
+      
+      const data = await getAllCoupons();
+      console.log('✅ [GiftScreen] Coupons fetched successfully:', data);
+      setCoupons(data);
+      
+      // טעינת קופונים שנרכשו
+      const purchasedData = await getCurrentUserPurchasedCoupons();
+      console.log('✅ [GiftScreen] Purchased coupons fetched successfully:', purchasedData);
+      setPurchasedCoupons(purchasedData);
+      
+      // יצירת אנימציות עבור הקופונים החדשים
+      setFadeAnims(data.map(() => new Animated.Value(0)));
+    } catch (error) {
+      console.error('❌ [GiftScreen] Error fetching coupons:', error);
+      console.error('❌ [GiftScreen] Error details:', JSON.stringify(error, null, 2));
+    }
+  };
+
+  const loadUserData = async () => {
+    try {
+      setRefreshing(true);
+      const user = await getCurrentUserFromSupabase();
+      if (user) {
+        setUserCoins(user.coins || 0);
+        // חישוב השלב הנוכחי על בסיס משימות שהושלמו
+        const tasksCompleted = user.tasksCompleted || 0;
+        const currentStageNumber = Math.floor(tasksCompleted / 10) + 1;
+        setCurrentStage(currentStageNumber);
+      }
+      // רענון קופונים
+      await fetchCoupons();
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // Track navigation when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       navigationOptimizer.trackNavigation('Gift');
+      // רענון אוטומטי של הקופונים כשמגיעים לדף
+      fetchCoupons();
     }, [])
   );
 
@@ -189,7 +260,7 @@ function GiftScreen() {
     fadeAnims.forEach((fadeAnim) => {
       fadeAnim.setValue(1); // הצגה מיידית
     });
-  }, []);
+  }, [fadeAnims]);
 
   // הצגת הודעת שגיאה
   const showError = (message: string) => {
@@ -322,21 +393,6 @@ function GiftScreen() {
     navigation.navigate('LuckyWheel');
   };
 
-  const loadUserData = async () => {
-    try {
-      const user = await getCurrentUserFromSupabase();
-      if (user) {
-        setUserCoins(user.coins || 0);
-        // חישוב השלב הנוכחי על בסיס משימות שהושלמו
-        const tasksCompleted = user.tasksCompleted || 0;
-        const currentStageNumber = Math.floor(tasksCompleted / 10) + 1;
-        setCurrentStage(currentStageNumber);
-      }
-    } catch (error) {
-      console.error('Error loading user data:', error);
-    }
-  };
-
   return (
     <View style={styles.container}>
       <LinearGradient 
@@ -385,7 +441,8 @@ function GiftScreen() {
           </TouchableOpacity>
 
           {/* כותרת מדוברת */}
-          <Text style={styles.headerTitleBig}>מה בא לך להרוויח היום?</Text>
+          <View style={styles.header}>
+          </View>
           <Text style={styles.headerSubtitleBig}>יאללה, בא לך משהו טעים?</Text>
 
           {/* כפתור ארנק במקום הפתע אותי */}
@@ -410,9 +467,19 @@ function GiftScreen() {
             removeClippedSubviews={true}
             keyboardShouldPersistTaps="handled"
             scrollEventThrottle={16}
-            bounces={false}
+            bounces={true}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={loadUserData}
+                colors={['#FF6B6B', '#4ECDC4']}
+                tintColor="#FF6B6B"
+              />
+            }
           >
-            {COUPONS.map((coupon, idx) => (
+            {/* קופונים זמינים לרכישה */}
+            <Text style={styles.sectionTitle}>🛍️ קופונים זמינים</Text>
+            {coupons.map((coupon, idx) => (
               <CouponCard 
                 key={coupon.id} 
                 coupon={coupon} 
@@ -422,6 +489,30 @@ function GiftScreen() {
                 isSelected={selectedCoupon === idx} 
               />
             ))}
+            
+            {/* קופונים שנרכשו */}
+            {purchasedCoupons.length > 0 && (
+              <>
+                <Text style={styles.sectionTitle}>🎫 הקופונים שלי</Text>
+                {purchasedCoupons.map((coupon, idx) => (
+                  <PurchasedCouponCard 
+                    key={coupon.id} 
+                    coupon={coupon} 
+                    onPress={() => {
+                      setSelectedCouponForBarcode(coupon);
+                      setShowBarcodeModal(true);
+                      modalAnimation.setValue(0);
+                      Animated.spring(modalAnimation, {
+                        toValue: 1,
+                        friction: 8,
+                        tension: 65,
+                        useNativeDriver: true
+                      }).start();
+                    }}
+                  />
+                ))}
+              </>
+            )}
           </ScrollView>
 
           {/* הודעת שגיאה */}
@@ -686,12 +777,17 @@ const styles = StyleSheet.create({
     color: '#2D3748', 
     marginBottom: 4 
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
   headerTitleBig: { 
-    fontSize: 26, 
-    fontWeight: 'bold', 
-    color: '#2D3748', 
+    fontSize: 18, 
+    color: '#4A5568', 
     textAlign: 'center', 
-    marginTop: 8 
+    marginBottom: 8 
   },
   headerSubtitleBig: { 
     fontSize: 18, 
@@ -750,7 +846,9 @@ const styles = StyleSheet.create({
   },
   scrollContent: { 
     padding: 16, 
-    paddingBottom: 40 
+    paddingBottom: 40,
+    flexGrow: 1,
+    minHeight: '100%'
   },
   couponContainer: { 
     marginBottom: 16 
@@ -1021,6 +1119,56 @@ const styles = StyleSheet.create({
   luckWheelSparkle: {
     fontSize: 28,
     marginLeft: 12,
+  },
+  purchasedCouponContainer: {
+    backgroundColor: '#F7FAFC',
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  purchasedCouponContent: {
+    alignItems: 'flex-start',
+  },
+  purchasedCouponTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    marginBottom: 4,
+  },
+  purchasedCouponDescription: {
+    fontSize: 14,
+    color: '#4A5568',
+    marginBottom: 8,
+  },
+  purchasedCouponFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  purchasedCouponBarcode: {
+    fontSize: 12,
+    color: '#718096',
+    fontFamily: 'monospace',
+  },
+  purchasedCouponStatus: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#38A169',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2D3748',
+    marginBottom: 16,
+    textAlign: 'right',
   },
 });
 
