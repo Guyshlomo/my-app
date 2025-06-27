@@ -2,7 +2,7 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
 import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
-import { userManager } from '../utils/userManager';
+import { signupWithSupabase } from '../db/supabaseApi';
 
 const SETTLEMENTS = [
   'ניר-עם',
@@ -11,15 +11,19 @@ const SETTLEMENTS = [
   'יכיני',
   'אור-הנר',
   'נחל עוז',
-  'ברור-חיל'
+  'ברור-חיל',
+  'גבים',
+  'דורות',
+  'רוחמה'
 ];
 
 export default function SignupScreen({ navigation }: any) {
-  const [fullName, setFullName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [birthDate, setBirthDate] = useState('');
+  const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [settlement, setSettlement] = useState('');
   const [profileImage, setProfileImage] = useState('');
   const [isDatePickerVisible, setDatePickerVisible] = useState(false);
@@ -45,8 +49,7 @@ export default function SignupScreen({ navigation }: any) {
   };
 
   const handleConfirmDate = (date: Date) => {
-    const formattedDate = date.toLocaleDateString('he-IL');
-    setBirthDate(formattedDate);
+    setBirthDate(date);
     setDatePickerVisible(false);
   };
 
@@ -61,7 +64,7 @@ export default function SignupScreen({ navigation }: any) {
 
   const handleSignup = async () => {
     // בדיקות תקינות
-    if (!fullName || !email || !password || !confirmPassword || !birthDate || !settlement) {
+    if (!firstName || !lastName || !email || !password || !confirmPassword || !birthDate || !settlement) {
       Alert.alert('שגיאה', 'נא למלא את כל השדות');
       return;
     }
@@ -76,26 +79,24 @@ export default function SignupScreen({ navigation }: any) {
       return;
     }
 
-    // חילוץ שם פרטי ושם משפחה מהשם המלא
-    const nameParts = fullName.trim().split(' ');
-    const firstName = nameParts[0];
-    const lastName = nameParts.slice(1).join(' ') || firstName;
-
-    // יצירת משתמש חדש
-    const result = await userManager.signup({
-      firstName,
-      lastName,
-      email,
-      password,
-      profileImage,
-    });
-
-    if (result.success) {
-      Alert.alert('הצלחה', result.message, [
+    try {
+      console.log('🚀 [Supabase] מתחיל תהליך הרשמה...');
+      await signupWithSupabase({
+        email,
+        password,
+        firstName,
+        lastName,
+        profileImage,
+        settlement,
+        birthDate,
+      });
+      console.log('✅ [Supabase] הרשמה הושלמה בהצלחה');
+      Alert.alert('הצלחה', 'נרשמת בהצלחה!', [
         { text: 'אישור', onPress: () => navigation.navigate('Home') }
       ]);
-    } else {
-      Alert.alert('שגיאה', result.message);
+    } catch (error: any) {
+      console.error('💥 [Supabase] שגיאה בהרשמה:', error);
+      Alert.alert('שגיאה', error.message || 'שגיאה בהרשמה');
     }
   };
 
@@ -105,19 +106,32 @@ export default function SignupScreen({ navigation }: any) {
         <Text style={{ fontSize: 28, color: '#222' }}>{'←'}</Text>
       </TouchableOpacity>
       <Text style={styles.title}>הרשמה</Text>
-      <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-        {profileImage ? (
-          <Image source={{ uri: profileImage }} style={styles.profileImage} />
-        ) : (
-          <Image source={require('../../assets/images/upload.png')} style={styles.profileImage} />
-        )}
-        <Text style={styles.imagePickerText}>העלה תמונת פרופיל</Text>
-      </TouchableOpacity>
+      
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+          {profileImage ? (
+            <Image source={{ uri: profileImage }} style={styles.profileImage} />
+          ) : (
+            <Image source={require('../../assets/images/upload.png')} style={styles.profileImage} />
+          )}
+          <Text style={styles.imagePickerText}>העלה תמונת פרופיל</Text>
+        </TouchableOpacity>
       <TextInput
-        style={[styles.input, fullName ? styles.inputFilled : null]}
-        placeholder="שם מלא"
-        value={fullName}
-        onChangeText={setFullName}
+        style={[styles.input, firstName ? styles.inputFilled : null]}
+        placeholder="שם פרטי"
+        value={firstName}
+        onChangeText={setFirstName}
+        placeholderTextColor="#888"
+      />
+      <TextInput
+        style={[styles.input, lastName ? styles.inputFilled : null]}
+        placeholder="שם משפחה"
+        value={lastName}
+        onChangeText={setLastName}
         placeholderTextColor="#888"
       />
       <TouchableOpacity
@@ -165,7 +179,7 @@ export default function SignupScreen({ navigation }: any) {
         </View>
         <View style={styles.textContainer}>
           <Text style={[styles.datePickerText, !birthDate && styles.placeholderText]}>
-            {birthDate || 'תאריך לידה'}
+            {birthDate ? birthDate.toLocaleDateString('he-IL') : 'תאריך לידה'}
           </Text>
         </View>
       </TouchableOpacity>
@@ -219,9 +233,10 @@ export default function SignupScreen({ navigation }: any) {
         </View>
       </Modal>
 
-      <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
-        <Text style={styles.signupText}>הרשמה</Text>
-      </TouchableOpacity>
+        <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
+          <Text style={styles.signupText}>הרשמה</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </View>
   );
 }
@@ -241,34 +256,40 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#222',
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 16,
     marginTop: 40,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   imagePicker: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: 8,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    marginBottom: 6,
     backgroundColor: '#f5f5f5',
   },
   imagePickerText: {
     color: '#666',
-    fontSize: 14,
+    fontSize: 12,
   },
   input: {
     backgroundColor: '#f5f5f5',
-    borderRadius: 24,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    marginBottom: 16,
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 12,
     fontSize: 16,
     textAlign: 'right',
   },
@@ -295,10 +316,10 @@ const styles = StyleSheet.create({
   },
   datePickerButton: {
     backgroundColor: '#f5f5f5',
-    borderRadius: 24,
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    marginBottom: 16,
+    borderRadius: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -374,11 +395,12 @@ const styles = StyleSheet.create({
   },
   signupButton: {
     backgroundColor: '#B7EFC5',
-    borderRadius: 24,
-    paddingVertical: 16,
+    borderRadius: 20,
+    paddingVertical: 14,
     paddingHorizontal: 32,
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: 12,
+    marginBottom: 8,
   },
   signupText: {
     color: '#222',

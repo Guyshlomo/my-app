@@ -4,10 +4,11 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Dimensions, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { Circle, Defs, G, Path, Stop, Svg, LinearGradient as SvgGradient, Image as SvgImage, Text as SvgText, Use } from 'react-native-svg';
+import { getCurrentUserFromSupabase, savePurchasedCoupon, updateUserInSupabase } from '../db/supabaseApi';
 import { RootStackParamList } from '../MainNavigator';
 import { emitCoinsUpdate } from '../utils/eventEmitter';
-import { userManager } from '../utils/userManager';
 
 const { width } = Dimensions.get('window');
 const WHEEL_SIZE = Math.min(width * 0.9, 350);
@@ -17,14 +18,14 @@ const PRIZES = [
   { 
     value: 0,
     color: '#F6B6E6',
-    couponTitle: 'כרטיס\nלסרט',
-    icon: '🎬'  // קולנוע
+    couponTitle: 'כרטיס\nלהופעה\nבדורות',
+    icon: '🎫'  // כרטיסים
   },
   { 
     value: 0,
     color: '#FFB084',
-    couponTitle: 'קילו\nגלידה',
-    icon: '🍦'  // גלידה
+    couponTitle: '2 אספרסו\nבקפה צ׳לה',
+    icon: '☕'  // אספרסו
   },
   { 
     value: 0,
@@ -47,13 +48,13 @@ const PRIZES = [
   { 
     value: 0,
     color: '#90CDF4',
-    couponTitle: 'כניסה\nלבריכה',
-    icon: '🏊‍♂️'  // שחיין בבריכה
+    couponTitle: 'ארוחת\ns בדפקא',
+    icon: '🍔'  // המבורגר
   },
   { 
     value: 0,
     color: '#FF9B9B',
-    couponTitle: 'פיצה\nאישית',
+    couponTitle: 'פיצה אישית\nבשמרלינג',
     icon: '🍕'  // פיצה
   },
   { 
@@ -128,13 +129,22 @@ const LuckyWheelScreen: React.FC = () => {
   const [showStarburst, setShowStarburst] = useState(false);
   const [showSparkles, setShowSparkles] = useState(false);
 
-
+  // Load user data
   useEffect(() => {
-    startButtonAnimations();
-    loadUserCoins();
-    // מאפסים את הגלגל למצב הבסיסי כשנכנסים למסך
-    spinValue.setValue(0);
+    loadUserData();
   }, []);
+
+  const loadUserData = async () => {
+    try {
+      const user = await getCurrentUserFromSupabase();
+      if (user) {
+        setUserCoins(user.coins || 0);
+        setDisplayedCoins(user.coins || 0);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
 
   const startButtonAnimations = () => {
     // אנימציית גדילה והקטנה
@@ -173,14 +183,6 @@ const LuckyWheelScreen: React.FC = () => {
     ).start();
   };
 
-  const loadUserCoins = async () => {
-    const user = await userManager.getCurrentUser();
-    if (user) {
-      setUserCoins(user.coins);
-      setDisplayedCoins(user.coins);
-    }
-  };
-
   const animateCoinsDecrease = () => {
     const startCoins = userCoins;
     const endCoins = userCoins - 1000;
@@ -215,7 +217,10 @@ const LuckyWheelScreen: React.FC = () => {
       const newCoins = userCoins + 1500;
       setUserCoins(newCoins);
       setDisplayedCoins(newCoins);
-      await userManager.updateUserCoins(newCoins);
+      const user = await getCurrentUserFromSupabase();
+      if (user) {
+        await updateUserInSupabase(user.id, { coins: newCoins });
+      }
       emitCoinsUpdate(newCoins);
 
       // מציגים חלון מטבעות מיוחד
@@ -293,11 +298,14 @@ const LuckyWheelScreen: React.FC = () => {
       setShowWinBanner(true);
       startConfetti(); // הפעלת קונפטי
       
-      // הצגת ברקוד עבור פרסים מתאימים (אינדקסים 0,1,3,5,6,7)
-      if ([0, 1, 3, 5, 6, 7].includes(segmentIndex)) {
+      // הצגת ברקוד עבור פרסים מתאימים (כל הפרסים חוץ מסיבוב נוסף ומטבעות)
+      if (![2, 4].includes(segmentIndex)) {
+        console.log('🎟️ Showing barcode for prize:', prize.couponTitle, 'at index:', segmentIndex);
         setTimeout(() => {
           showBarcodeForPrize(prize);
         }, 2000); // 2 שניות אחרי הבאנר
+      } else {
+        console.log('🚫 No barcode for prize:', prize.couponTitle, 'at index:', segmentIndex);
       }
       
       Animated.parallel([
@@ -348,13 +356,19 @@ const LuckyWheelScreen: React.FC = () => {
 
     setIsSpinning(true);
 
-    // מורידים מטבעות רק אם זה לא סיבוב חינם
+    // מתחילים את הסיבוב מיד
+    spinWheel();
+
+    // מורידים מטבעות רק אם זה לא סיבוב חינם (במקביל לסיבוב)
     if (!hasFreeSpins) {
       const newCoins = userCoins - 1000;
       setUserCoins(newCoins);
       setDisplayedCoins(newCoins);
       emitCoinsUpdate(newCoins);
-      userManager.updateUserCoins(newCoins);
+      const user = await getCurrentUserFromSupabase();
+      if (user) {
+        await updateUserInSupabase(user.id, { coins: newCoins });
+      }
 
       setShowCoinPopup(true);
       coinPopupAnim.setValue(0);
@@ -374,9 +388,6 @@ const LuckyWheelScreen: React.FC = () => {
         setShowCoinPopup(false);
       });
     }
-
-    // מתחילים את הסיבוב
-    spinWheel();
   };
 
   const spinWheel = () => {
@@ -386,7 +397,7 @@ const LuckyWheelScreen: React.FC = () => {
     
     // חישוב מדויק של הסיבוב לפי הנוסחה החדשה
     const baseRotation = 3600; // 10 סיבובים מלאים
-    const targetRotation = baseRotation + (segmentIndex * segmentAngle);
+    const targetRotation = baseRotation - (segmentIndex * segmentAngle);
     
     console.log('Selected prize index:', segmentIndex);
     console.log('Rotation calculation:', `${baseRotation} + (${segmentIndex} × ${segmentAngle}) = ${targetRotation}`);
@@ -396,7 +407,7 @@ const LuckyWheelScreen: React.FC = () => {
       duration: SPIN_DURATION,
       easing: Easing.bezier(0.2, 0.6, 0.2, 1),
       useNativeDriver: true,
-    }).start(() => {
+    }).start(async () => {
       setIsSpinning(false);
       
       const prize = PRIZES[segmentIndex];
@@ -422,7 +433,16 @@ const LuckyWheelScreen: React.FC = () => {
         const newCoins = userCoins + 1500;
         setUserCoins(newCoins);
         setDisplayedCoins(newCoins);
-        userManager.updateUserCoins(newCoins);
+        
+        try {
+          const user = await getCurrentUserFromSupabase();
+          if (user) {
+            await updateUserInSupabase(user.id, { coins: newCoins });
+          }
+        } catch (error) {
+          console.error('Error updating user coins:', error);
+        }
+        
         emitCoinsUpdate(newCoins);
 
         // מציגים חלון מטבעות מיוחד
@@ -695,34 +715,45 @@ const LuckyWheelScreen: React.FC = () => {
   };
 
   const saveCouponToUser = async (prize: typeof PRIZES[0], barcode: string) => {
+    console.log('💾 saveCouponToUser started for prize:', prize.couponTitle, 'barcode:', barcode);
     try {
-      const user = await userManager.getCurrentUser();
-      if (user) {
-        const couponData = {
-          id: parseInt(barcode.replace(/[^\d]/g, ''), 10), // המר ברקוד למספר
-          title: prize.couponTitle.replace('\n', ' '),
-          desc: prize.couponTitle.replace('\n', ' '),
-          coins: 0 // קופון זכייה - לא עלה מטבעות
-        };
-        
-        // שמור את הקופון למשתמש
-        const success = await userManager.savePurchasedCoupon(couponData);
-        if (success) {
-          console.log('Coupon saved successfully:', couponData);
-        } else {
-          console.log('Failed to save coupon');
-        }
+      const user = await getCurrentUserFromSupabase();
+      if (!user) {
+        console.error('❌ No current user found');
+        return;
       }
+      console.log('✅ Current user found:', user.id);
+      
+      const couponData = {
+        coupon_title: prize.couponTitle.replace('\n', ' '),
+        coupon_description: prize.couponTitle.replace('\n', ' '),
+        coins_spent: 0, // קופון זכייה - לא עלה מטבעות
+        barcode: barcode
+      };
+      
+      console.log('💾 About to save coupon data:', couponData);
+      console.log('💾 User ID:', user.id);
+      console.log('💾 Calling savePurchasedCoupon...');
+      
+      // שמור את הקופון למשתמש בסופה בייס
+      const result = await savePurchasedCoupon(user.id, couponData);
+      console.log('✅ Lucky wheel coupon saved successfully with result:', result);
+      console.log('✅ Barcode:', barcode);
+      console.log('✅ Coupon data:', couponData);
     } catch (error) {
-      console.log('Error saving coupon:', error);
+      console.error('❌ Error saving lucky wheel coupon:', error);
     }
   };
 
   const showBarcodeForPrize = async (prize: typeof PRIZES[0]) => {
+    console.log('🎟️ showBarcodeForPrize called for:', prize.couponTitle);
     const barcode = generateBarcode();
+    console.log('🎟️ Generated barcode:', barcode);
     setCurrentBarcode(barcode);
     setShowBarcodeModal(true);
+    console.log('🎟️ About to save coupon to user...');
     await saveCouponToUser(prize, barcode);
+    console.log('🎟️ Coupon save completed');
   };
 
   const resetWheel = () => {
@@ -812,7 +843,7 @@ const LuckyWheelScreen: React.FC = () => {
                   {
                     rotate: spinValue.interpolate({
                       inputRange: [0, 360],
-                      outputRange: ['0deg', '-360deg']
+                      outputRange: ['0deg', '360deg']
                     })
                   },
                   { scale: wheelPulseAnim }
@@ -1008,46 +1039,35 @@ const LuckyWheelScreen: React.FC = () => {
           <Text style={styles.rewardText}>{rewardText}</Text>
         </Animated.View>
 
-        {/* חלון ברקוד */}
+        {/* חלון ברקוד - זהה לחנות */}
         <Modal
           visible={showBarcodeModal}
           transparent={true}
           animationType="fade"
+          onRequestClose={() => setShowBarcodeModal(false)}
         >
-          <View style={styles.barcodeModalOverlay}>
-            <View style={styles.barcodeModalContent}>
-              <LinearGradient
-                colors={['#4CAF50', '#45A049']}
-                style={styles.barcodeModalGradient}
+          <View style={styles.modalOverlay}>
+            <View style={styles.barcodeModal}>
+              <Text style={styles.modalTitle}>
+                {currentPrize?.couponTitle.replace('\n', ' ')}
+              </Text>
+              <View style={styles.qrContainer}>
+                {currentPrize && (
+                  <QRCode
+                    value={`coupon-${currentPrize.couponTitle.replace('\n', '')}-${Date.now()}`}
+                    size={200}
+                  />
+                )}
+              </View>
+              <Text style={styles.modalDescription}>
+                הצג את הברקוד בקופה למימוש ההטבה
+              </Text>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setShowBarcodeModal(false)}
               >
-                <Text style={styles.barcodeTitle}>איזה כיף!</Text>
-                <Text style={styles.barcodeSubtitle}>זכית בפרס שווה במיוחד! 🎉</Text>
-                
-                {/* ברקוד */}
-                <View style={styles.barcodeContainer}>
-                  <View style={styles.barcodeLines}>
-                    {[...Array(20)].map((_, index) => (
-                      <View 
-                        key={index} 
-                        style={[
-                          styles.barcodeLine, 
-                          { width: Math.random() > 0.5 ? 2 : 4 }
-                        ]} 
-                      />
-                    ))}
-                  </View>
-                  <Text style={styles.barcodeText}>{currentBarcode}</Text>
-                </View>
-                
-                <Text style={styles.barcodeInfo}>הברקוד נשמר בקופונים שלך</Text>
-                
-                <TouchableOpacity
-                  style={styles.barcodeCloseButton}
-                  onPress={() => setShowBarcodeModal(false)}
-                >
-                  <Text style={styles.barcodeCloseText}>סגור</Text>
-                </TouchableOpacity>
-              </LinearGradient>
+                <Text style={styles.closeButtonText}>סגור</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>
@@ -1344,9 +1364,8 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginTop: 10,
-    marginBottom: 5,
+    color: '#000000',
+    marginBottom: 20,
     textAlign: 'center',
   },
   modalText: {
@@ -1479,148 +1498,30 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
-
-  barcodeModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  barcodeModalContent: {
-    width: '85%',
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  barcodeModalGradient: {
-    padding: 30,
-    alignItems: 'center',
-  },
-  barcodeTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  barcodeSubtitle: {
-    fontSize: 20,
-    color: '#FFFFFF',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  barcodeContainer: {
+  barcodeModal: {
     backgroundColor: '#FFFFFF',
     padding: 20,
-    borderRadius: 10,
+    borderRadius: 20,
     alignItems: 'center',
+  },
+  qrContainer: {
     marginBottom: 20,
-    width: '100%',
   },
-  barcodeLines: {
-    flexDirection: 'row',
-    height: 60,
-    alignItems: 'flex-end',
-    justifyContent: 'space-around',
-    width: '80%',
-    marginBottom: 10,
-  },
-  barcodeLine: {
-    backgroundColor: '#000000',
-    height: '100%',
-    marginHorizontal: 1,
-  },
-  barcodeText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  modalDescription: {
     color: '#000000',
-    letterSpacing: 2,
-  },
-  barcodeInfo: {
     fontSize: 16,
-    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 20,
   },
-  barcodeCloseButton: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
+  closeButton: {
+    backgroundColor: '#FF6B6B',
+    padding: 15,
     borderRadius: 25,
   },
-  barcodeCloseText: {
-    color: '#4CAF50',
+  closeButtonText: {
+    color: '#FFFFFF',
     fontSize: 18,
     fontWeight: 'bold',
   },
-  specialModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  specialModalContent: {
-    width: '80%',
-    borderRadius: 20,
-    overflow: 'hidden',
-  },
-  specialModalGradient: {
-    padding: 40,
-    alignItems: 'center',
-  },
-  specialModalIcon: {
-    fontSize: 60,
-    marginBottom: 20,
-  },
-  specialModalTitle: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  specialModalSubtitle: {
-    fontSize: 24,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  coinsAmountText: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  coinsDisplayContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 15,
-    gap: 10,
-  },
-  currentCoinsText: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  spinCostContainer: {
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  spinButtonTextContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  spinCostText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    textAlign: 'center',
-    marginTop: 4,
-  },
-
   wheelGlow: {
     position: 'absolute',
     top: -20,
@@ -1678,6 +1579,70 @@ const styles = StyleSheet.create({
     textShadowColor: '#FFFFFF',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 5,
+  },
+  spinButtonTextContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  spinCostText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    opacity: 0.9,
+    textAlign: 'center',
+    marginTop: 4,
+  },
+  specialModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  specialModalContent: {
+    width: '80%',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  specialModalGradient: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  specialModalIcon: {
+    fontSize: 60,
+    marginBottom: 20,
+  },
+  specialModalTitle: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  specialModalSubtitle: {
+    fontSize: 24,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  coinsAmountText: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  coinsDisplayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 15,
+    gap: 10,
+  },
+  currentCoinsText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 

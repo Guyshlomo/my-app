@@ -1,20 +1,21 @@
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
-import { addCoinsUpdateListener, removeCoinsUpdateListener } from '../utils/eventEmitter';
-import { User, userManager } from '../utils/userManager';
+import { getAllUsersFromSupabase, getCurrentUserFromSupabase } from '../db/supabaseApi';
+import { User } from '../types/types';
+import { addCoinsUpdateListener, addTasksCompletedListener, removeCoinsUpdateListener, removeTasksCompletedListener } from '../utils/eventEmitter';
+import { navigationOptimizer } from '../utils/navigationOptimizer';
 
 const { width } = Dimensions.get('window');
 
@@ -32,92 +33,153 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 type UserWithTasks = User & { tasksCompleted?: number };
 
+// קומפוננט ממוטב לכרטיס משתמש
+const UserCard = React.memo(({ user, index, isCurrentUser }: {
+  user: UserWithTasks;
+  index: number;
+  isCurrentUser: boolean;
+}) => (
+  <View>
+    <TouchableOpacity
+      style={[
+        styles.userCard,
+        index === 0 && styles.firstPlace,
+        isCurrentUser && styles.currentUser,
+      ]}
+    >
+      <View style={styles.rankContainer}>
+        {index === 0 && <Text style={styles.rankCrown}>👑</Text>}
+        <Text style={[styles.rankNumber, index === 0 && styles.firstPlaceText]}>
+          {index + 1}
+        </Text>
+      </View>
+
+      <View style={styles.userInfo}>
+        {user.profileImage ? (
+          <Image source={{ uri: user.profileImage }} style={styles.profileImage} />
+        ) : (
+          <View style={styles.defaultAvatar}>
+            <Text style={styles.avatarText}>{user.firstName?.[0] || '?'}</Text>
+          </View>
+        )}
+        <View style={styles.userDetails}>
+          <Text style={styles.userName}>{`${user.firstName} ${user.lastName}`}</Text>
+          <Text style={styles.userStats}>{`${user.tasksCompleted || 0} התנדבויות`}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  </View>
+));
+
 export default function TrophyScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [currentUser, setCurrentUser] = useState<UserWithTasks | null>(null);
   const [allUsers, setAllUsers] = useState<UserWithTasks[]>([]);
+  const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [previousRank, setPreviousRank] = useState(0);
   const [confettiKey, setConfettiKey] = useState(0);
-  const confettiLeftRef = useRef<ConfettiCannon>(null);
-  const confettiRightRef = useRef<ConfettiCannon>(null);
-  const confettiCenterRef = useRef<ConfettiCannon>(null);
+  const confettiRef = useRef<ConfettiCannon>(null);
   const [userCoins, setUserCoins] = useState(0);
+
+  const loadData = useCallback(async () => {
+    if (loading) return; // מניעת טעינה כפולה
+    
+    setLoading(true);
+    try {
+      // Use cached data from API for much faster loading
+      const [user, users] = await Promise.all([
+        getCurrentUserFromSupabase(),
+        getAllUsersFromSupabase()
+      ]);
+      
+      if (!users || users.length === 0) {
+        console.log('📊 No users found');
+        return;
+      }
+      
+      const sortedUsers = users.sort((a: UserWithTasks, b: UserWithTasks) => (b.tasksCompleted || 0) - (a.tasksCompleted || 0));
+      
+      if (user) {
+        setCurrentUser(user);
+        const currentRank = sortedUsers.findIndex((u: UserWithTasks) => u.id === user.id) + 1;
+        
+        // בדיקה אם המשתמש עלה בדירוג (רק אם יש שינוי אמיתי)
+        if (previousRank > currentRank && previousRank !== 0 && currentRank > 0) {
+          setShowConfetti(true);
+          // הפעלת קונפטי רק כשצריך
+          setTimeout(() => {
+            confettiRef.current?.start();
+          }, 100);
+          setTimeout(() => setShowConfetti(false), 3000);
+        }
+        setPreviousRank(currentRank);
+      }
+      
+      setAllUsers(sortedUsers);
+      console.log('✅ נתוני Trophy נטענו מהcache:', { usersCount: sortedUsers.length });
+    } catch (error) {
+      console.error('❌ Error loading trophy data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [loading, previousRank]);
+
+  const loadUserCoins = useCallback(async () => {
+    try {
+      const user = await getCurrentUserFromSupabase();
+      if (user) {
+        setUserCoins(user.coins);
+      }
+    } catch (error) {
+      console.error('Error loading user coins:', error);
+    }
+  }, []);
 
   useEffect(() => {
     loadData();
     loadUserCoins();
-
+    
     // הוספת מאזין לשינויים במטבעות
     const coinsUpdateHandler = (newCoins: number) => {
       setUserCoins(newCoins);
     };
 
+    // הוספת מאזין לעדכון התנדבויות
+    const tasksCompletedHandler = (userId: string, tasksCompleted: number) => {
+      console.log('📊 [TrophyScreen] Received tasksCompleted update:', { userId, tasksCompleted });
+      // Reload all user data to get updated rankings
+      loadData();
+    };
+
     addCoinsUpdateListener(coinsUpdateHandler);
+    addTasksCompletedListener(tasksCompletedHandler);
 
     // ניקוי המאזין כשהקומפוננטה מתפרקת
     return () => {
       removeCoinsUpdateListener(coinsUpdateHandler);
+      removeTasksCompletedListener(tasksCompletedHandler);
     };
-  }, []);
+  }, [loadData, loadUserCoins]);
 
-  const loadData = async () => {
-    const user = await userManager.getCurrentUser();
-    const users = await userManager.getAllUsers() as UserWithTasks[];
-    const sortedUsers = users.sort((a, b) => (b.tasksCompleted || 0) - (a.tasksCompleted || 0));
-    
-    if (user) {
-      setCurrentUser(user);
-      const currentRank = sortedUsers.findIndex(u => u.id === user.id) + 1;
-      
-      // בדיקה אם המשתמש עלה בדירוג
-      if (previousRank > currentRank && previousRank !== 0) {
-        setShowConfetti(true);
-        setTimeout(() => setShowConfetti(false), 3000);
-      }
-      setPreviousRank(currentRank);
-    }
-    
-    setAllUsers(sortedUsers);
-  };
+  // רענון נתונים כשחוזרים למסך
+  useFocusEffect(
+    React.useCallback(() => {
+      // Track navigation for optimization
+      navigationOptimizer.trackNavigation('Trophy');
+      loadData();
+    }, [loadData])
+  );
 
-  const loadUserCoins = async () => {
-    const user = await userManager.getCurrentUser();
-    if (user) {
-      setUserCoins(user.coins);
-    }
-  };
+  const getUserRank = useMemo(() => {
+    if (!currentUser || allUsers.length === 0) return 0;
+    return allUsers.findIndex(u => u.id === currentUser.id) + 1;
+  }, [currentUser, allUsers]);
 
-  // עדכון הדירוג בכל פעם שהמטבעות משתנים
-  useEffect(() => {
-    const interval = setInterval(loadData, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // הפעלת קונפטי מתמשך
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (confettiLeftRef.current) {
-        confettiLeftRef.current.start();
-      }
-      setTimeout(() => {
-        if (confettiCenterRef.current) {
-          confettiCenterRef.current.start();
-        }
-      }, 500);
-      setTimeout(() => {
-        if (confettiRightRef.current) {
-          confettiRightRef.current.start();
-        }
-      }, 1000);
-    }, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const getUserRank = (user: UserWithTasks) => {
-    return allUsers.findIndex(u => u.id === user.id) + 1;
-  };
+  const userRankText = useMemo(() => {
+    if (!currentUser || allUsers.length === 0) return 'טוען...';
+    return `אתה נמצא במקום ${getUserRank} מתוך ${allUsers.length}!`;
+  }, [getUserRank, allUsers.length, currentUser]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -155,7 +217,7 @@ export default function TrophyScreen() {
             </View>
           )}
           <Text style={styles.rankText}>
-            אתה נמצא במקום {getUserRank(currentUser!)} מתוך {allUsers.length}!
+            {userRankText}
           </Text>
         </View>
         <View style={styles.trophyContainer}>
@@ -181,64 +243,32 @@ export default function TrophyScreen() {
         style={styles.scrollView} 
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 100 }]}
         showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={16}
+        bounces={false}
       >
-        {allUsers.map((user, index) => (
-          <Animated.View key={user.id}>
-            <TouchableOpacity
-              style={[
-                styles.userCard,
-                index === 0 && styles.firstPlace,
-                user.id === currentUser?.id && styles.currentUser,
-              ]}
-            >
-              <View style={styles.rankContainer}>
-                {index === 0 && <Text style={styles.rankCrown}>👑</Text>}
-                <Text style={[styles.rankNumber, index === 0 && styles.firstPlaceText]}>
-                  {index + 1}
-                </Text>
-              </View>
-
-              <View style={styles.userInfo}>
-                {user.profileImage ? (
-                  <Image source={{ uri: user.profileImage }} style={styles.profileImage} />
-                ) : (
-                  <View style={styles.defaultAvatar}>
-                    <Text style={styles.avatarText}>{user.firstName[0]}</Text>
-                  </View>
-                )}
-                <View style={styles.userDetails}>
-                  <Text style={styles.userName}>{`${user.firstName} ${user.lastName}`}</Text>
-                  <Text style={styles.userStats}>{`${user.tasksCompleted || 0} התנדבויות`}</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </Animated.View>
-        ))}
+        {loading && allUsers.length === 0 ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>טוען טבלת מיקומים...</Text>
+          </View>
+        ) : (
+          allUsers.map((user, index) => (
+            <UserCard
+              key={user.id}
+              user={user}
+              index={index}
+              isCurrentUser={user.id === currentUser?.id}
+            />
+          ))
+        )}
       </ScrollView>
 
-      {/* קונפטי מרובה מיקומים */}
+      {/* קונפטי בודד */}
       <ConfettiCannon
-        ref={confettiLeftRef}
-        count={20}
-        origin={{ x: -10, y: -10 }}
-        autoStart={false}
-        fadeOut={true}
-        fallSpeed={3000}
-        colors={['#FFD700', '#FFA500', '#FF69B4', '#87CEEB']}
-      />
-      <ConfettiCannon
-        ref={confettiCenterRef}
-        count={20}
+        ref={confettiRef}
+        count={50}
         origin={{ x: width/2, y: -10 }}
-        autoStart={false}
-        fadeOut={true}
-        fallSpeed={3000}
-        colors={['#FFD700', '#FFA500', '#FF69B4', '#87CEEB']}
-      />
-      <ConfettiCannon
-        ref={confettiRightRef}
-        count={20}
-        origin={{ x: width + 10, y: -10 }}
         autoStart={false}
         fadeOut={true}
         fallSpeed={3000}
@@ -496,7 +526,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 8,
-    zIndex: 1000,
+    zIndex: 9999,
   },
   bannerIconWrap: {
     flex: 1,
@@ -550,5 +580,15 @@ const styles = StyleSheet.create({
     color: '#4CAF50',
     marginTop: 2,
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#666',
   },
 }); 

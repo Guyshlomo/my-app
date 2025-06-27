@@ -1,191 +1,279 @@
 import { useNavigation } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
+  Alert,
+  Animated,
   Dimensions,
+  FlatList,
   Modal,
-  SafeAreaView,
-  ScrollView,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
+  Vibration,
   View
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { userManager } from '../utils/userManager';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { getCurrentUserFromSupabase, getUserPurchasedCoupons, markCouponAsUsed } from '../db/supabaseApi';
 
-const { width } = Dimensions.get('window');
-const QR_SIZE = width * 0.4;
-
+// Define PurchasedCoupon type locally since it's not exported from supabaseApi
 interface PurchasedCoupon {
-  id: number;
-  title: string;
-  desc: string;
-  coins: number;
-  purchaseDate: string;
+  id: string;
+  coupon_id: string;
+  coupon_title: string;
+  coupon_description: string;
+  coins_spent: number;
+  created_at?: string;
+  purchase_date?: string;
+  is_used: boolean;
   barcode: string;
 }
 
-function PurchaseHistoryScreen() {
-  const navigation = useNavigation();
-  const [purchases, setPurchases] = useState<PurchasedCoupon[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+const { width } = Dimensions.get('window');
+
+type RootStackParamList = {
+  Gift: undefined;
+  PurchaseHistory: undefined;
+};
+
+type NavigationProp = StackNavigationProp<RootStackParamList>;
+
+const PurchaseHistoryScreen = () => {
+  const navigation = useNavigation<NavigationProp>();
+  const [purchasedCoupons, setPurchasedCoupons] = useState<PurchasedCoupon[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedCoupon, setSelectedCoupon] = useState<PurchasedCoupon | null>(null);
+  const [showBarcodeModal, setShowBarcodeModal] = useState(false);
+  const modalAnimation = React.useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    loadPurchaseHistory();
+    loadPurchasedCoupons();
   }, []);
 
-  const loadPurchaseHistory = async () => {
+  const loadPurchasedCoupons = async () => {
     try {
-      const purchasedCoupons = await userManager.getPurchasedCoupons();
-      if (purchasedCoupons) {
-        setPurchases(purchasedCoupons.map(coupon => ({
-          id: coupon.id,
-          title: coupon.title,
-          desc: coupon.desc,
-          coins: coupon.coins,
-          purchaseDate: coupon.purchaseDate,
-          barcode: `coupon-${coupon.id}-${Date.now()}`
-        })));
+      setLoading(true);
+      const currentUser = await getCurrentUserFromSupabase();
+      if (!currentUser) {
+        console.log('❌ לא נמצא משתמש מחובר');
+        return;
       }
+
+      const coupons = await getUserPurchasedCoupons(currentUser.id);
+      console.log('🎟️ Loaded coupons from Supabase:', coupons.length, 'coupons');
+      console.log('🎟️ Coupons data:', coupons);
+      setPurchasedCoupons(coupons);
     } catch (error) {
-      console.error('Error loading purchase history:', error);
+      console.error('Error loading purchased coupons:', error);
+      Alert.alert('שגיאה', 'לא ניתן לטעון את הקופונים');
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const showCouponBarcode = (coupon: PurchasedCoupon) => {
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadPurchasedCoupons();
+  };
+
+  const handleCouponPress = (coupon: PurchasedCoupon) => {
+    if (coupon.is_used) {
+      Alert.alert('קופון בשימוש', 'קופון זה כבר נוצל');
+      return;
+    }
+
     setSelectedCoupon(coupon);
     setShowBarcodeModal(true);
+    modalAnimation.setValue(0);
+    Animated.spring(modalAnimation, {
+      toValue: 1,
+      friction: 8,
+      tension: 65,
+      useNativeDriver: true
+    }).start();
   };
 
-  const deleteCoupon = async (couponId: number) => {
-    try {
-      const success = await userManager.deleteCoupon(couponId);
-      if (success) {
-        // הסרת הקופון מהרשימה המקומית
-        setPurchases(prevPurchases =>
-          prevPurchases.filter(purchase => purchase.id !== couponId)
-        );
-      }
-    } catch (error) {
-      console.error('Error deleting coupon:', error);
-    }
+  const closeBarcodeModal = () => {
+    Animated.timing(modalAnimation, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setShowBarcodeModal(false);
+      setSelectedCoupon(null);
+    });
+  };
+
+  const handleMarkAsUsed = async (coupon: PurchasedCoupon) => {
+    Alert.alert(
+      'סימון כמשומש',
+      'האם אתה בטוח שרצונך לסמן קופון זה כמשומש?',
+      [
+        { text: 'ביטול', style: 'cancel' },
+        {
+          text: 'כן, סמן כמשומש',
+          onPress: async () => {
+            try {
+              const success = await markCouponAsUsed(coupon.id);
+              if (success) {
+                Vibration.vibrate(100);
+                Alert.alert('הצלחה', 'הקופון סומן כמשומש');
+                loadPurchasedCoupons(); // Refresh the list
+                closeBarcodeModal();
+              } else {
+                Alert.alert('שגיאה', 'לא ניתן לסמן את הקופון כמשומש');
+              }
+            } catch (error) {
+              console.error('Error marking coupon as used:', error);
+              Alert.alert('שגיאה', 'אירעה שגיאה בעדכון הקופון');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('he-IL', {
       year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
-  return (
-    <View style={styles.container}>
-      <LinearGradient
-        colors={['#FEE2F8', '#A6E3E9']}
-        style={styles.gradientBg}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+  const renderCouponItem = ({ item }: { item: PurchasedCoupon }) => (
+    <TouchableOpacity
+      style={[
+        styles.couponCard,
+        item.is_used && styles.usedCouponCard
+      ]}
+      onPress={() => handleCouponPress(item)}
+    >
+      <View style={styles.couponHeader}>
+        <Text style={[styles.couponTitle, item.is_used && styles.usedText]}>
+          {item.coupon_title}
+        </Text>
+        <View style={[
+          styles.statusBadge,
+          item.is_used ? styles.usedBadge : styles.activeBadge
+        ]}>
+          <Text style={styles.statusText}>
+            {item.is_used ? 'נוצל' : 'פעיל'}
+          </Text>
+        </View>
+      </View>
+      
+      <Text style={[styles.couponDescription, item.is_used && styles.usedText]}>
+        {item.coupon_description}
+      </Text>
+      
+      <View style={styles.couponFooter}>
+        <Text style={[styles.coinValue, item.is_used && styles.usedText]}>
+          💰 {item.coins_spent} מטבעות
+        </Text>
+        <Text style={[styles.purchaseDate, item.is_used && styles.usedText]}>
+          {formatDate(item.created_at || item.purchase_date || new Date().toISOString())}
+        </Text>
+      </View>
+
+      {item.is_used && (
+        <View style={styles.usedOverlay}>
+          <Text style={styles.usedOverlayText}>✓ נוצל</Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  const EmptyState = () => (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyStateIcon}>🎁</Text>
+      <Text style={styles.emptyStateTitle}>אין קופונים עדיין</Text>
+      <Text style={styles.emptyStateSubtitle}>
+        לך לחנות המתנות ורכוש קופונים עם המטבעות שלך!
+      </Text>
+      <TouchableOpacity
+        style={styles.backToShopButton}
+        onPress={() => navigation.goBack()}
       >
-        <SafeAreaView style={styles.safeArea}>
-          {/* כותרת */}
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.backArrow}>←</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>הקופונים שלי</Text>
-          </View>
+        <Text style={styles.backToShopText}>חזור לחנות</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
-          {isLoading ? (
-            <ActivityIndicator size="large" color="#2D3748" style={styles.loader} />
-          ) : (
-            <ScrollView 
-              style={styles.scrollView} 
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-            >
-              {purchases.map((purchase) => (
-                <View
-                  key={`${purchase.id}-${purchase.purchaseDate}`}
-                  style={styles.purchaseCard}
-                >
-                  <View style={styles.purchaseHeader}>
-                    <Text style={styles.purchaseDate}>
-                      {formatDate(purchase.purchaseDate)}
-                    </Text>
-                    <Text style={styles.purchaseTitle}>{purchase.title}</Text>
-                  </View>
-                  
-                  <Text style={styles.purchaseDesc}>{purchase.desc}</Text>
+  return (
+    <SafeAreaView style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>הקופונים שלי</Text>
+        <View style={styles.placeholder} />
+      </View>
 
-                  <View style={styles.qrContainer}>
-                    <QRCode
-                      value={purchase.barcode}
-                      size={QR_SIZE}
-                      backgroundColor="white"
-                    />
-                    <Text style={styles.qrText}>הצג בקופה למימוש</Text>
-                    
-                    <View style={styles.buttonsContainer}>
-                      <TouchableOpacity
-                        style={styles.deleteButton}
-                        onPress={() => deleteCoupon(purchase.id)}
-                      >
-                        <Text style={styles.deleteButtonText}>🗑️ הסרת הקופון</Text>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity
-                        style={styles.useCouponButton}
-                        onPress={() => showCouponBarcode(purchase)}
-                      >
-                        <Text style={styles.useCouponButtonText}>✓ מימוש הקופון בקופה</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
-          )}
-        </SafeAreaView>
-      </LinearGradient>
+      {/* Content */}
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>טוען קופונים...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={purchasedCoupons}
+          keyExtractor={(item) => item.id}
+          renderItem={renderCouponItem}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          ListEmptyComponent={<EmptyState />}
+        />
+      )}
 
-      {/* מודל הברקוד */}
+      {/* Barcode Modal */}
       <Modal
         visible={showBarcodeModal}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setShowBarcodeModal(false)}
+        onRequestClose={closeBarcodeModal}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {selectedCoupon?.title}
-              </Text>
-              <TouchableOpacity
-                style={styles.modalCloseButton}
-                onPress={() => setShowBarcodeModal(false)}
-              >
-                <Text style={styles.modalCloseText}>✕</Text>
-              </TouchableOpacity>
-            </View>
+        <Animated.View 
+          style={[
+            styles.modalOverlay,
+            { opacity: modalAnimation }
+          ]}
+        >
+          <Animated.View 
+            style={[
+              styles.barcodeModal,
+              {
+                transform: [
+                  {
+                    scale: modalAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.9, 1],
+                    })
+                  }
+                ]
+              }
+            ]}
+          >
+            <Text style={styles.modalTitle}>
+              {selectedCoupon?.coupon_title}
+            </Text>
             
-            <View style={styles.modalQrContainer}>
+            <View style={styles.qrContainer}>
               {selectedCoupon && (
                 <QRCode
                   value={selectedCoupon.barcode}
-                  size={250}
-                  backgroundColor="white"
+                  size={200}
                 />
               )}
             </View>
@@ -193,208 +281,179 @@ function PurchaseHistoryScreen() {
             <Text style={styles.modalDescription}>
               הצג את הברקוד בקופה למימוש ההטבה
             </Text>
-          </View>
-        </View>
+            
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={styles.markUsedButton}
+                onPress={() => selectedCoupon && handleMarkAsUsed(selectedCoupon)}
+              >
+                <Text style={styles.markUsedButtonText}>סמן כמשומש</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={closeBarcodeModal}
+              >
+                <Text style={styles.closeButtonText}>סגור</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </Animated.View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  gradientBg: {
-    flex: 1,
-  },
-  safeArea: {
-    flex: 1,
+    backgroundColor: '#FEF6DA',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
+    justifyContent: 'space-between',
+    padding: 16,
+    backgroundColor: '#D7D2B6',
   },
-  backButton: {
-    position: 'absolute',
-    left: 16,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'white',
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  backArrow: {
-    fontSize: 28,
-    color: '#2D3748',
-    fontWeight: '300',
-    marginLeft: -2,
+  backIcon: {
+    fontSize: 24,
+    color: '#333',
+    fontWeight: 'bold',
+    padding: 8,
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#2D3748',
-    textAlign: 'center',
+    color: '#333',
   },
-  loader: {
+  placeholder: {
+    width: 40,
+  },
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  scrollView: {
-    flex: 1,
+  loadingText: {
+    fontSize: 18,
+    color: '#666',
   },
-  scrollContent: {
+  listContainer: {
     padding: 16,
-    paddingBottom: 32,
+    paddingBottom: 100,
   },
-  purchaseCard: {
-    backgroundColor: 'white',
-    borderRadius: 16,
-    padding: 20,
+  couponCard: {
+    backgroundColor: '#fff',
+    borderRadius: 15,
+    padding: 16,
     marginBottom: 16,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    alignItems: 'center',
+    position: 'relative',
   },
-  usedPurchaseCard: {
+  usedCouponCard: {
+    backgroundColor: '#f5f5f5',
     opacity: 0.7,
-    backgroundColor: '#F7FAFC',
   },
-  purchaseHeader: {
-    width: '100%',
+  couponHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
+  },
+  couponTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    flex: 1,
+  },
+  statusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  activeBadge: {
+    backgroundColor: '#4CAF50',
+  },
+  usedBadge: {
+    backgroundColor: '#9E9E9E',
+  },
+  statusText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  couponDescription: {
+    fontSize: 14,
+    color: '#666',
     marginBottom: 12,
   },
-  purchaseTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2D3748',
-    flex: 1,
-    textAlign: 'right',
-  },
-  purchaseDate: {
-    fontSize: 14,
-    color: '#718096',
-    marginLeft: 8,
-  },
-  purchaseDesc: {
-    fontSize: 16,
-    color: '#4A5568',
-    marginBottom: 16,
-    alignSelf: 'flex-end',
-    textAlign: 'right',
-  },
-  coinContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    backgroundColor: '#FFF9E6',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-  },
-  coinIcon: {
-    width: 20,
-    height: 20,
-    marginLeft: 4,
-  },
-  coinText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#2D3748',
-  },
-  qrContainer: {
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#F7FAFC',
-    borderRadius: 12,
-    width: '100%',
-  },
-  qrText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#4A5568',
-    fontWeight: '500',
-  },
-  usedStamp: {
-    backgroundColor: '#E2E8F0',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  usedStampText: {
-    fontSize: 16,
-    color: '#718096',
-    fontWeight: '500',
-  },
-  buttonsContainer: {
+  couponFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%',
-    marginTop: 16,
-    gap: 12,
+    alignItems: 'center',
   },
-  useCouponButton: {
-    backgroundColor: '#38A169',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    flex: 1,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  useCouponButtonText: {
-    color: 'white',
-    fontSize: 14,
+  coinValue: {
+    fontSize: 16,
     fontWeight: 'bold',
-    textAlign: 'center',
+    color: '#2D3748',
   },
-  deleteButton: {
-    backgroundColor: '#E53E3E',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-    flex: 1,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 3.84,
-    elevation: 5,
+  purchaseDate: {
+    fontSize: 12,
+    color: '#999',
   },
-  deleteButtonText: {
-    color: 'white',
-    fontSize: 14,
+  usedText: {
+    color: '#999',
+  },
+  usedOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderTopRightRadius: 15,
+    borderBottomLeftRadius: 15,
+  },
+  usedOverlayText: {
+    color: '#fff',
+    fontSize: 12,
     fontWeight: 'bold',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingTop: 80,
+  },
+  emptyStateIcon: {
+    fontSize: 80,
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  emptyStateSubtitle: {
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
+    marginBottom: 24,
+  },
+  backToShopButton: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 25,
+  },
+  backToShopText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
   modalOverlay: {
     flex: 1,
@@ -402,59 +461,68 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalContent: {
+  barcodeModal: {
     backgroundColor: 'white',
     borderRadius: 20,
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
+    width: width * 0.9,
+    maxWidth: 400,
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    shadowRadius: 4,
     elevation: 5,
-    minWidth: 320,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
-    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#2D3748',
-    flex: 1,
+    marginBottom: 16,
     textAlign: 'center',
   },
-  modalCloseButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#E2E8F0',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCloseText: {
-    fontSize: 18,
-    color: '#4A5568',
-    fontWeight: 'bold',
-  },
-  modalQrContainer: {
-    padding: 20,
-    backgroundColor: '#F7FAFC',
-    borderRadius: 12,
-    marginBottom: 20,
+  qrContainer: {
+    padding: 16,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
   },
   modalDescription: {
     fontSize: 16,
     color: '#4A5568',
+    marginBottom: 24,
     textAlign: 'center',
-    marginTop: 10,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  markUsedButton: {
+    backgroundColor: '#FF9500',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  markUsedButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  closeButton: {
+    backgroundColor: '#2D3748',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 16,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 

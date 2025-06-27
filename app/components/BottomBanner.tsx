@@ -3,6 +3,7 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { navigationOptimizer } from '../utils/navigationOptimizer';
 
 type RootStackParamList = {
   Home: undefined;
@@ -35,9 +36,13 @@ export default function BottomBanner() {
         height: 85 + Math.max(insets.bottom - 20, 0)
       }
     ]}>
+      {/* Trophy - הכי שמאלי */}
       <TouchableOpacity 
         style={[styles.iconContainer, currentScreen === 'Trophy' && styles.activeIconContainer]}
-        onPress={() => navigation.navigate('Trophy')}
+        onPress={async () => {
+          await navigationOptimizer.optimizeNavigation('Trophy');
+          navigation.navigate('Trophy');
+        }}
       >
         <View style={[styles.iconWrapper, currentScreen === 'Trophy' && styles.activeIconWrapper]}>
           <Image 
@@ -47,33 +52,13 @@ export default function BottomBanner() {
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity 
-        style={[styles.iconContainer, currentScreen === 'Calendar' && styles.activeIconContainer]}
-        onPress={() => navigation.navigate('Calendar')}
-      >
-        <View style={[styles.iconWrapper, currentScreen === 'Calendar' && styles.activeIconWrapper]}>
-          <Image 
-            source={require('../../assets/images/calander.png')}
-            style={[styles.icon, currentScreen === 'Calendar' && styles.activeIcon]}
-          />
-        </View>
-      </TouchableOpacity>
-
-      <TouchableOpacity 
-        style={[styles.homeContainer, currentScreen === 'Home' && styles.activeIconContainer]}
-        onPress={() => navigation.navigate('Home')}
-      >
-        <View style={[styles.homeWrapper, currentScreen === 'Home' && styles.activeIconWrapper]}>
-          <Image 
-            source={require('../../assets/images/home.png')}
-            style={[styles.icon, currentScreen === 'Home' && styles.activeIcon]}
-          />
-        </View>
-      </TouchableOpacity>
-
+      {/* Gift - שני משמאל */}
       <TouchableOpacity 
         style={[styles.iconContainer, currentScreen === 'Gift' && styles.activeIconContainer]}
-        onPress={() => navigation.navigate('Gift')}
+        onPress={async () => {
+          await navigationOptimizer.optimizeNavigation('Gift');
+          navigation.navigate('Gift');
+        }}
       >
         <View style={[styles.iconWrapper, currentScreen === 'Gift' && styles.activeIconWrapper]}>
           <Image 
@@ -84,8 +69,43 @@ export default function BottomBanner() {
       </TouchableOpacity>
 
       <TouchableOpacity 
+        style={[styles.homeContainer, currentScreen === 'Home' && styles.activeIconContainer]}
+        onPress={async () => {
+          await navigationOptimizer.optimizeNavigation('Home');
+          navigation.navigate('Home');
+        }}
+      >
+        <View style={[styles.homeWrapper, currentScreen === 'Home' && styles.activeIconWrapper]}>
+          <Image 
+            source={require('../../assets/images/home.png')}
+            style={[styles.icon, currentScreen === 'Home' && styles.activeIcon]}
+          />
+        </View>
+      </TouchableOpacity>
+
+      {/* Calendar - רביעי משמאל */}
+      <TouchableOpacity 
+        style={[styles.iconContainer, currentScreen === 'Calendar' && styles.activeIconContainer]}
+        onPress={async () => {
+          await navigationOptimizer.optimizeNavigation('Calendar');
+          navigation.navigate('Calendar');
+        }}
+      >
+        <View style={[styles.iconWrapper, currentScreen === 'Calendar' && styles.activeIconWrapper]}>
+          <Image 
+            source={require('../../assets/images/calander.png')}
+            style={[styles.icon, currentScreen === 'Calendar' && styles.activeIcon]}
+          />
+        </View>
+      </TouchableOpacity>
+
+      {/* Volunteer - הכי ימני */}
+      <TouchableOpacity 
         style={[styles.iconContainer, currentScreen === 'Volunteer' && styles.activeIconContainer]}
-        onPress={() => navigation.navigate('Volunteer', { from: currentScreen === 'Trophy' ? 'Trophy' : 'Home' })}
+        onPress={async () => {
+          await navigationOptimizer.optimizeNavigation('Volunteer');
+          navigation.navigate('Volunteer', { from: currentScreen === 'Trophy' ? 'Trophy' : 'Home' });
+        }}
       >
         <View style={[styles.iconWrapper, currentScreen === 'Volunteer' && styles.activeIconWrapper]}>
           <Image 

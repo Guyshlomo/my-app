@@ -1,9 +1,19 @@
-import { useNavigation } from '@react-navigation/native';
+/**
+ * מסך המתנות - ממוטב ומשופר
+ * 
+ * שינויים שבוצעו:
+ * 1. הסרת אנימציית הכסף - עכשיו מציג מיד את הכמות הנכונה
+ * 2. החלפת מערכת הרמות בשלב נוכחי - מבוסס על משימות שהושלמו
+ * 3. הסרת באנר ההתקדמות - ממשק נקי יותר
+ * 4. הסרת פונקציות מיותרות - LEVELS, getLevel, ProgressBar
+ * 5. שיפור ביצועים - פחות אנימציות מיותרות
+ */
+
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   Animated,
   Dimensions,
   Easing,
@@ -19,8 +29,9 @@ import {
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import QRCode from 'react-native-qrcode-svg';
+import { getCurrentUserFromSupabase, savePurchasedCoupon, updateUserInSupabase } from '../db/supabaseApi';
 import { addCoinsUpdateListener, removeCoinsUpdateListener } from '../utils/eventEmitter';
-import { userManager } from '../utils/userManager';
+import { navigationOptimizer } from '../utils/navigationOptimizer';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,7 +40,7 @@ const IMAGES = {
   gift: require('../../assets/images/gift.png'),
   trophy: require('../../assets/images/trophy.png'),
   volunteer: require('../../assets/images/volunteer.png'),
-  calendar: require('../../assets/images/calander.png'),
+  calander: require('../../assets/images/calander.png'),
   home: require('../../assets/images/home.png'),
   coin: require('../../assets/images/coin.png'),
 };
@@ -57,82 +68,14 @@ interface CouponData {
 }
 
 const COUPONS: CouponData[] = [
-  { id: 1, title: '🍩 מאפה בקפה צ׳לה', desc: 'ניר עם', coins: 170, color: '#FF9B9B' },
-  { id: 2, title: '🍟 חומוס של טחינה', desc: 'צ׳יפס במתנה', coins: 150, color: '#FFB084' },
-  { id: 3, title: '🍦 גלידה גולדה', desc: 'כדור נוסף', coins: 180, color: '#F6B6E6' },
-  { id: 4, title: '🍕 פיצה שמש', desc: 'משקה חינם', coins: 120, color: '#9FD9B3' },
-  { id: 5, title: '🥨 אוריוס', desc: 'מאפה שקדים - ארז', coins: 200, color: '#90CDF4' },
+  { id: 1, title: '🍩 מאפה בקפה צ׳לה', desc: 'בקניית קפה', coins: 170, color: '#FF9B9B' },
+  { id: 2, title: '🍟 צ׳יפס במתנה בחומוס של טחינה', desc: 'בקניית מנת חומוס', coins: 150, color: '#FFB084' },
+  { id: 5, title: '🥨 מאפה לבחירה באוריוס', desc: 'בקניית קפה', coins: 200, color: '#90CDF4' },
+  { id: 6, title: '🥤 שתייה במתנה בדפקא', desc: 'בקניית ארוחת המבורגר', coins: 180, color: '#F6B6E6' },
+  { id: 7, title: '☕ קפה אצל דן דן', desc: 'בקניית כריך או מאפה', coins: 160, color: '#9FD9B3' },
 ];
 
-const LEVELS = [
-  { name: 'מתחיל', min: 0, max: 100 },
-  { name: 'זורם', min: 100, max: 200 },
-  { name: 'תותח', min: 200, max: 300 },
-  { name: 'שולט!', min: 300, max: 500 },
-  { name: 'אגדה!', min: 500, max: 9999 },
-];
 
-function getLevel(userCoins: number) {
-  for (let i = LEVELS.length - 1; i >= 0; i--) {
-    if (userCoins >= LEVELS[i].min) return { ...LEVELS[i], index: i };
-  }
-  return { ...LEVELS[0], index: 0 };
-}
-
-function ProgressBar({ progress, color }: { progress: number; color: string }) {
-  return (
-    <View style={styles.progressBarBg}>
-      <Animated.View style={[styles.progressBarFill, { width: `${progress * 100}%`, backgroundColor: color }]} />
-    </View>
-  );
-}
-
-function IconButton({ 
-  icon, 
-  onPress, 
-  isActive 
-}: { 
-  icon: keyof typeof IMAGES; 
-  onPress?: () => void;
-  isActive?: boolean;
-}) {
-  const [isLoading, setIsLoading] = useState(true);
-
-  return (
-    <TouchableOpacity 
-      style={[styles.bannerIconWrap, isActive && styles.activeIconWrap]}
-      onPress={onPress}
-    >
-      {isActive ? (
-        <View style={styles.activeIconBackground}>
-          {isLoading && (
-            <ActivityIndicator size="small" color="#2D3748" style={styles.loader} />
-          )}
-          <Image 
-            source={IMAGES[icon]}
-            style={[styles.bannerIcon, isLoading && styles.hiddenImage]}
-            onLoadStart={() => setIsLoading(true)}
-            onLoad={() => setIsLoading(false)}
-            resizeMode="contain"
-          />
-        </View>
-      ) : (
-        <>
-          {isLoading && (
-            <ActivityIndicator size="small" color="#2D3748" style={styles.loader} />
-          )}
-          <Image 
-            source={IMAGES[icon]}
-            style={[styles.bannerIcon, isLoading && styles.hiddenImage]}
-            onLoadStart={() => setIsLoading(true)}
-            onLoad={() => setIsLoading(false)}
-            resizeMode="contain"
-          />
-        </>
-      )}
-    </TouchableOpacity>
-  );
-}
 
 function CouponCard({ 
   coupon, 
@@ -147,38 +90,7 @@ function CouponCard({
   onCoinPress: () => void;
   isSelected: boolean;
 }) {
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const colorAnim = useRef(new Animated.Value(0)).current;
   const [isPressed, setIsPressed] = useState(false);
-  const [isImageLoading, setIsImageLoading] = useState(true);
-
-  useEffect(() => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      friction: 5,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
-  useEffect(() => {
-    if (isSelected) {
-      Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.1, duration: 150, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-      ]).start();
-      Animated.timing(colorAnim, {
-        toValue: 1,
-        duration: 400,
-        easing: Easing.linear,
-        useNativeDriver: false,
-      }).start(() => colorAnim.setValue(0));
-    }
-  }, [isSelected]);
-
-  const bgColor = colorAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [coupon.color, '#FFD700'],
-  });
 
   return (
     <Animated.View 
@@ -186,8 +98,7 @@ function CouponCard({
         styles.couponContainer, 
         { 
           opacity: fadeAnim,
-          transform: [{ scale: scaleAnim }],
-          backgroundColor: bgColor,
+          backgroundColor: isSelected ? '#FFD700' : coupon.color,
           borderWidth: isSelected ? 3 : 0,
           borderColor: isSelected ? '#FFD700' : 'transparent',
         }
@@ -209,14 +120,9 @@ function CouponCard({
             style={styles.coinButton}
             onPress={onCoinPress}
           >
-            {isImageLoading && (
-              <ActivityIndicator size="small" color="#2D3748" style={styles.loader} />
-            )}
             <Image 
               source={IMAGES.coin}
-              style={[styles.coinIcon, isImageLoading && styles.hiddenImage]}
-              onLoadStart={() => setIsImageLoading(true)}
-              onLoad={() => setIsImageLoading(false)}
+              style={styles.coinIcon}
               resizeMode="contain"
             />
             <Text style={styles.coinText}>{coupon.coins}</Text>
@@ -233,7 +139,7 @@ function GiftScreen() {
   const confettiCenterRef = useRef<ConfettiCannon>(null);
   const confettiRightRef = useRef<ConfettiCannon>(null);
   const [userCoins, setUserCoins] = useState(0);
-  const [displayCoins, setDisplayCoins] = useState(0);
+  const [currentStage, setCurrentStage] = useState(1); // שלב נוכחי במקום רמה
   const [selectedCoupon, setSelectedCoupon] = useState<number | null>(null);
   const [rewardText, setRewardText] = useState('');
   const [fadeReward] = useState(new Animated.Value(0));
@@ -247,46 +153,16 @@ function GiftScreen() {
     ['#FEE2F8', '#A6E3E9'],
   ]);
   const [bgIndex, setBgIndex] = useState(0);
-  const [isSurpriseLoading, setIsSurpriseLoading] = useState(false);
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
   const [selectedCouponForBarcode, setSelectedCouponForBarcode] = useState<CouponData | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
   const errorAnim = useRef(new Animated.Value(-100)).current;
-  const [isCountingDown, setIsCountingDown] = useState(false);
-  const [countdownCoins, setCountdownCoins] = useState(0);
-  const countdownAnim = useRef(new Animated.Value(0)).current;
-  const [isAnimating, setIsAnimating] = useState(false);
-  const [previousLevel, setPreviousLevel] = useState<number | null>(null);
-  const coinsAnim = useRef(new Animated.Value(0)).current;
-  const [animatedCoins, setAnimatedCoins] = useState(0);
   const [isErrorModalVisible, setIsErrorModalVisible] = useState(false);
   const errorModalAnimation = useRef(new Animated.Value(0)).current;
 
-  // עדכון ערך המטבעות המונפש
+  // טעינת נתוני המשתמש
   useEffect(() => {
-    coinsAnim.addListener(({ value }) => {
-      setAnimatedCoins(Math.round(value));
-    });
-
-    return () => {
-      coinsAnim.removeAllListeners();
-    };
-  }, []);
-
-  // אנימציית שינוי מטבעות
-  const animateCoinsChange = (start: number, end: number, duration = 1500) => {
-    coinsAnim.setValue(start);
-    Animated.timing(coinsAnim, {
-      toValue: end,
-      duration,
-      easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: false,
-    }).start();
-  };
-
-  // טעינת מטבעות המשתמש
-  useEffect(() => {
-    loadUserCoins();
+    loadUserData();
 
     // הוספת מאזין לשינויים במטבעות
     const coinsUpdateHandler = (newCoins: number) => {
@@ -301,23 +177,17 @@ function GiftScreen() {
     };
   }, []);
 
-  // מעקב אחרי שינויים במטבעות ואנימציה בהתאם
-  useEffect(() => {
-    if (userCoins !== animatedCoins) {
-      animateCoinsChange(animatedCoins, userCoins);
-    }
-  }, [userCoins]);
+  // Track navigation when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      navigationOptimizer.trackNavigation('Gift');
+    }, [])
+  );
 
-  // אנימציית הופעה לקופונים
+  // הצגה מיידית של קופונים ללא אנימציה
   useEffect(() => {
-    fadeAnims.forEach((fadeAnim, i) => {
-      setTimeout(() => {
-        Animated.spring(fadeAnim, {
-          toValue: 1,
-          friction: 6,
-          useNativeDriver: true,
-        }).start();
-      }, i * 120);
+    fadeAnims.forEach((fadeAnim) => {
+      fadeAnim.setValue(1); // הצגה מיידית
     });
   }, []);
 
@@ -392,24 +262,25 @@ function GiftScreen() {
     }
 
     setSelectedCoupon(idx);
-    setIsAnimating(true);
     const newCoins = userCoins - coupon.coins;
     
     try {
-      // שמירת הקופון שנרכש
-      const saveCouponSuccess = await userManager.savePurchasedCoupon({
-        id: coupon.id,
-        title: coupon.title,
-        desc: coupon.desc,
-        coins: coupon.coins
-      });
-
-      if (!saveCouponSuccess) {
-        throw new Error('Failed to save coupon');
+      // קבלת המשתמש הנוכחי
+      const currentUser = await getCurrentUserFromSupabase();
+      if (!currentUser) {
+        throw new Error('No current user found');
       }
 
-      // עדכון המטבעות
-      await userManager.updateUserCoins(newCoins);
+      // שמירת הקופון שנרכש בסופה בייס
+      await savePurchasedCoupon(currentUser.id, {
+        coupon_title: coupon.title,
+        coupon_description: coupon.desc,
+        coins_spent: coupon.coins
+      });
+
+      // עדכון המטבעות בסופה בייס
+      await updateUserInSupabase(currentUser.id, { coins: newCoins });
+
       setUserCoins(newCoins);
       
       // אנימציות והודעות
@@ -438,75 +309,11 @@ function GiftScreen() {
 
       // סגירה אוטומטית אחרי 10 שניות
       setTimeout(closeBarcode, 10000);
-      setTimeout(() => setSelectedCoupon(null), 1500);
     } catch (error) {
       console.error('Error purchasing coupon:', error);
       setErrorMessage('אירעה שגיאה ברכישת הקופון');
       displayErrorModal();
-      setIsAnimating(false);
       setSelectedCoupon(null);
-    }
-  };
-
-  // טיפול בלחיצה על כפתור המטבעות
-  const handleCoinButtonPress = async (coupon: CouponData) => {
-    if (userCoins < coupon.coins) {
-      displayErrorModal();
-      Vibration.vibrate(400);
-      return;
-    }
-
-    setIsAnimating(true);
-    const endCoins = userCoins - coupon.coins;
-
-    try {
-      // שמירת הקופון שנרכש
-      const saveCouponSuccess = await userManager.savePurchasedCoupon({
-        id: coupon.id,
-        title: coupon.title,
-        desc: coupon.desc,
-        coins: coupon.coins
-      });
-
-      if (!saveCouponSuccess) {
-        throw new Error('Failed to save coupon');
-      }
-
-      // עדכון המטבעות
-      await userManager.updateUserCoins(endCoins);
-      setUserCoins(endCoins);
-      
-      // אנימציות והודעות
-      confettiLeftRef.current?.start();
-      setTimeout(() => confettiCenterRef.current?.start(), 100);
-      setTimeout(() => confettiRightRef.current?.start(), 200);
-      
-      setRewardText(`הורדת ${coupon.coins} מטבעות 💸`);
-      Animated.sequence([
-        Animated.timing(fadeReward, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.delay(1200),
-        Animated.timing(fadeReward, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]).start();
-
-      Vibration.vibrate(100);
-      
-      setSelectedCouponForBarcode(coupon);
-      setShowBarcodeModal(true);
-      modalAnimation.setValue(0);
-      Animated.spring(modalAnimation, {
-        toValue: 1,
-        friction: 8,
-        tension: 65,
-        useNativeDriver: true
-      }).start();
-
-      // סגירה אוטומטית אחרי 10 שניות
-      setTimeout(closeBarcode, 10000);
-    } catch (error) {
-      console.error('Error purchasing coupon:', error);
-      setErrorMessage('אירעה שגיאה ברכישת הקופון');
-      displayErrorModal();
-      setIsAnimating(false);
     }
   };
 
@@ -515,64 +322,18 @@ function GiftScreen() {
     navigation.navigate('LuckyWheel');
   };
 
-  // חישוב רמה ו־ProgressBar
-  const level = getLevel(userCoins);
-  const nextLevel = LEVELS[Math.min(level.index + 1, LEVELS.length - 1)];
-  const progress = (userCoins - level.min) / (nextLevel.max - level.min);
-
-  // קופון יוקרתי לדוגמה (הכי יקר)
-  const premiumCoupon = COUPONS.reduce((prev, curr) => (curr.coins > prev.coins ? curr : prev), COUPONS[0]);
-  const coinsToPremium = Math.max(0, premiumCoupon.coins - userCoins);
-
-  // עדכון תצוגת המטבעות בזמן אנימציה
-  useEffect(() => {
-    countdownAnim.addListener(({ value }) => {
-      setDisplayCoins(Math.round(value));
-    });
-
-    return () => {
-      countdownAnim.removeAllListeners();
-    };
-  }, []);
-
-  // בדיקת שינוי רמה
-  useEffect(() => {
-    const currentLevel = getLevel(userCoins).index;
-    
-    // אם יש רמה קודמת ועלינו רמה
-    if (previousLevel !== null && currentLevel > previousLevel) {
-      // הפעלת קונפטי לחגיגת הרמה החדשה - מהיר וחלק יותר
-      confettiLeftRef.current?.start();
-      
-      setTimeout(() => {
-        confettiCenterRef.current?.start();
-      }, 50);  // הפרש זמן קטן יותר
-
-      setTimeout(() => {
-        confettiRightRef.current?.start();
-      }, 100);  // הפרש זמן קטן יותר
-      
-      // עדכון הרמה הקודמת
-      setPreviousLevel(currentLevel);
-      
-      // הצגת הודעת ברכה
-      setRewardText(`🎉 כל הכבוד! עלית לרמה ${currentLevel + 1} - ${LEVELS[currentLevel].name}`);
-      Animated.sequence([
-        Animated.timing(fadeReward, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.delay(2000),
-        Animated.timing(fadeReward, { toValue: 0, duration: 300, useNativeDriver: true }),
-      ]).start();
-      
-      Vibration.vibrate([100, 200, 100]);
-    } else {
-      setPreviousLevel(currentLevel);
-    }
-  }, [userCoins]);
-
-  const loadUserCoins = async () => {
-    const user = await userManager.getCurrentUser();
-    if (user) {
-      setUserCoins(user.coins);
+  const loadUserData = async () => {
+    try {
+      const user = await getCurrentUserFromSupabase();
+      if (user) {
+        setUserCoins(user.coins || 0);
+        // חישוב השלב הנוכחי על בסיס משימות שהושלמו
+        const tasksCompleted = user.tasksCompleted || 0;
+        const currentStageNumber = Math.floor(tasksCompleted / 10) + 1;
+        setCurrentStage(currentStageNumber);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
     }
   };
 
@@ -587,43 +348,21 @@ function GiftScreen() {
         <SafeAreaView style={styles.safeArea}>
           {/* באנר מטבעות */}
           <View style={styles.topContainer}>
-            <View style={[
-              styles.coinsBanner,
-              isAnimating && styles.coinsBannerAnimating
-            ]}>
+            <View style={styles.coinsBanner}>
               <Image 
                 source={IMAGES.coin} 
-                style={[
-                  styles.coinIcon,
-                  isAnimating && styles.coinIconShake
-                ]} 
+                style={styles.coinIcon}
                 resizeMode="contain"
               />
-              <Animated.Text 
-                style={[
-                  styles.coinsText,
-                  isAnimating && styles.coinsTextAnimating,
-                  {
-                    transform: [{
-                      scale: coinsAnim.interpolate({
-                        inputRange: [0, userCoins],
-                        outputRange: [0.95, 1.05],
-                        extrapolate: 'clamp'
-                      })
-                    }]
-                  }
-                ]}
-              >
-                יש לך {animatedCoins} מטבעות
-              </Animated.Text>
+              <Text style={styles.coinsText}>
+                יש לך {userCoins} מטבעות
+              </Text>
             </View>
           </View>
 
-          {/* מד רמה ו־ProgressBar */}
+          {/* מד שלב נוכחי */}
           <View style={styles.levelBar}>
-            <Text style={styles.levelText}>{`רמה ${level.index + 1} – ${level.name}`}</Text>
-            <ProgressBar progress={progress} color="#FFD700" />
-            <Text style={styles.progressText}>{`עוד ${coinsToPremium} מטבעות ל-${premiumCoupon.title}`}</Text>
+            <Text style={styles.levelText}>🎯 אתה נמצא בשלב {currentStage}!</Text>
           </View>
 
           {/* לחצן גלגל המזל */}
@@ -664,14 +403,22 @@ function GiftScreen() {
           </Animated.View>
 
           {/* קופונים */}
-          <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            style={styles.scrollView} 
+            contentContainerStyle={styles.scrollContent} 
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            keyboardShouldPersistTaps="handled"
+            scrollEventThrottle={16}
+            bounces={false}
+          >
             {COUPONS.map((coupon, idx) => (
               <CouponCard 
                 key={coupon.id} 
                 coupon={coupon} 
                 fadeAnim={fadeAnims[idx]} 
                 onPress={() => handleCouponPress(coupon, idx)}
-                onCoinPress={() => handleCoinButtonPress(coupon)}
+                onCoinPress={() => handleCouponPress(coupon, idx)}
                 isSelected={selectedCoupon === idx} 
               />
             ))}
@@ -835,9 +582,7 @@ function GiftScreen() {
               />
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={[styles.bannerIconWrap, styles.activeIconWrap]}
-            >
+            <TouchableOpacity style={[styles.bannerIconWrap, styles.activeIconWrap]}>
               <View style={styles.activeIconBackground}>
                 <Image 
                   source={IMAGES.gift}
@@ -861,7 +606,7 @@ function GiftScreen() {
               onPress={() => navigation.navigate('Calendar')}
             >
               <Image 
-                source={IMAGES.calendar}
+                source={IMAGES.calander}
                 style={styles.bannerIcon}
               />
             </TouchableOpacity>
@@ -940,23 +685,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold', 
     color: '#2D3748', 
     marginBottom: 4 
-  },
-  progressBarBg: { 
-    width: '80%', 
-    height: 12, 
-    backgroundColor: '#fff', 
-    borderRadius: 8, 
-    overflow: 'hidden', 
-    marginBottom: 4 
-  },
-  progressBarFill: { 
-    height: '100%', 
-    borderRadius: 8 
-  },
-  progressText: { 
-    fontSize: 13, 
-    color: '#2D3748', 
-    marginBottom: 2 
   },
   headerTitleBig: { 
     fontSize: 26, 
@@ -1116,13 +844,7 @@ const styles = StyleSheet.create({
     height: 32, 
     resizeMode: 'contain' 
   },
-  loader: { 
-    position: 'absolute', 
-    alignSelf: 'center' 
-  },
-  hiddenImage: { 
-    opacity: 0 
-  },
+
   errorMessage: {
     position: 'absolute',
     top: '50%',

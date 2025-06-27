@@ -1,5 +1,6 @@
 import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
+import AdminUsersScreen from './screens/AdminUsersScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import GiftScreen from './screens/GiftScreen';
 import HomeScreen from './screens/HomeScreen';
@@ -22,6 +23,7 @@ export type RootStackParamList = {
   Volunteer: { from: 'Home' | 'Trophy' | 'Gift' };
   PurchaseHistory: undefined;
   LuckyWheel: undefined;
+  AdminUsers: undefined;
 };
 
 function MainNavigator() {
@@ -31,6 +33,32 @@ function MainNavigator() {
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: '#FEF6DA' },
+        transitionSpec: {
+          open: {
+            animation: 'timing',
+            config: {
+              duration: 20, // מהיר במיוחד
+            },
+          },
+          close: {
+            animation: 'timing',
+            config: {
+              duration: 15, // מהיר במיוחד
+            },
+          },
+        },
+        cardStyleInterpolator: ({ current }) => {
+          return {
+            cardStyle: {
+              opacity: current.progress,
+            },
+          };
+        },
+        gestureEnabled: true,
+        gestureResponseDistance: 100,
+        gestureVelocityImpact: 0.8,
+        detachPreviousScreen: true, // משחרר מסכים קודמים מהר יותר
+        presentation: 'card',
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />
@@ -42,6 +70,14 @@ function MainNavigator() {
       <Stack.Screen name="Volunteer" component={VolunteerScreen} />
       <Stack.Screen name="PurchaseHistory" component={PurchaseHistoryScreen} />
       <Stack.Screen name="LuckyWheel" component={LuckyWheelScreen} />
+      <Stack.Screen 
+        name="AdminUsers" 
+        component={AdminUsersScreen}
+        options={{
+          title: 'ניהול משתמשים',
+          headerTitleAlign: 'center',
+        }}
+      />
     </Stack.Navigator>
   );
 }
