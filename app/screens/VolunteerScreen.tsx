@@ -19,9 +19,7 @@ import { Alert, Animated, Image, RefreshControl, SafeAreaView, ScrollView, Style
 import type { RootStackParamList } from '../MainNavigator';
 import { cancelVolunteerRegistration, completeVolunteerEvent, deleteVolunteerEvent, getCurrentUserFromSupabase, getEventRegistrations, registerForVolunteerEvent } from '../db/supabaseApi';
 import type { User, VolunteerEvent, VolunteerRegistration } from '../types/types';
-import { cacheManager } from '../utils/cacheManager';
 import { addEventDeletedListener, emitEventDeleted, removeEventDeletedListener } from '../utils/eventEmitter';
-import { navigationOptimizer } from '../utils/navigationOptimizer';
 import { volunteerEventsManager } from '../utils/volunteerEvents';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
@@ -205,25 +203,6 @@ function VolunteerScreen() {
   // Load data - אופטימיזציה לטעינה מהירה יותר
   const loadData = useCallback(async (showLoadingState = false, forceRefresh = false) => {
     try {
-      // Check global cache first (except for force refresh)
-      if (!forceRefresh) {
-        const cachedUser = cacheManager.getUserData();
-        const cachedEvents = cacheManager.getVolunteerEvents();
-        
-        if (cachedUser && cachedEvents) {
-          const cachedRegistrations = cacheManager.getUserRegistrations(cachedUser.id);
-          if (cachedRegistrations) {
-            console.log('📦 Using cached volunteer data from global cache');
-            setCurrentUser(cachedUser);
-            setEvents(cachedEvents);
-            setUserRegistrations(cachedRegistrations);
-            setIsInitialized(true);
-            setIsLoadingUser(false);
-            return;
-          }
-        }
-      }
-
       if (showLoadingState) {
         setIsLoadingUser(true);
       }
@@ -243,10 +222,6 @@ function VolunteerScreen() {
             registrationsCount: registrations.length
           });
           setUserRegistrations(registrations);
-          
-          // Update global cache
-          cacheManager.setUserData(user);
-          cacheManager.setVolunteerData(events, registrations, user.id);
           
         } catch (error) {
           console.error('❌ Error loading volunteer data:', error);
@@ -294,15 +269,7 @@ function VolunteerScreen() {
       if (isInitialized) {
         console.log('🔄 [VolunteerScreen] Screen focused - using cache first');
         
-        // Track navigation for optimization
-        navigationOptimizer.trackNavigation('Volunteer');
-        
-        loadData(false, false); // רענון שקט עם cache
-        
-        // Background refresh after cache load
-        setTimeout(() => {
-          loadData(false, true); // Force refresh in background
-        }, 100);
+        loadData(false, false); // רענון שקט
       }
     }, [isInitialized])
   );
@@ -359,10 +326,6 @@ function VolunteerScreen() {
       
       console.log('✅ [UI] Registration successful, result:', result);
       
-      // Clear cache to ensure fresh data
-      await volunteerEventsManager.clearCache();
-      cacheManager.invalidateVolunteerData(); // Invalidate global cache
-      
       // הצגת באנר הצלחה
       setShowSuccess(true);
       Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
@@ -414,9 +377,6 @@ function VolunteerScreen() {
     try {
       console.log('🗑️ [UI] מוחק הרשמה להתנדבות:', eventId);
       await cancelVolunteerRegistration(eventId, currentUser.id);
-      
-      // Clear cache to ensure fresh data
-      await volunteerEventsManager.clearCache();
       
       // הצגת באנר ביטול
       setShowUnregister(true);
@@ -731,7 +691,6 @@ function VolunteerScreen() {
         <View style={styles.adminBottomNav}>
           <View style={styles.adminBottomNavContent}>
             <TouchableOpacity style={styles.adminNavButton} onPress={async () => {
-              await navigationOptimizer.optimizeNavigation('AdminUsers');
               navigation.navigate('AdminUsers' as any);
             }}>
               <Text style={styles.adminNavIcon}>⚙️</Text>
@@ -739,7 +698,6 @@ function VolunteerScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.adminNavButton} onPress={async () => {
-              await navigationOptimizer.optimizeNavigation('Home');
               navigation.navigate('Home');
             }}>
               <Text style={styles.adminNavIcon}>🏠</Text>

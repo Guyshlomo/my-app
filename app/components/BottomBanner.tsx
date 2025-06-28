@@ -3,7 +3,6 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import React from 'react';
 import { Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { navigationOptimizer } from '../utils/navigationOptimizer';
 
 type RootStackParamList = {
   Home: undefined;
@@ -39,8 +38,7 @@ export default function BottomBanner() {
       {/* Trophy - הכי שמאלי */}
       <TouchableOpacity 
         style={[styles.iconContainer, currentScreen === 'Trophy' && styles.activeIconContainer]}
-        onPress={async () => {
-          await navigationOptimizer.optimizeNavigation('Trophy');
+        onPress={() => {
           navigation.navigate('Trophy');
         }}
       >
@@ -55,8 +53,7 @@ export default function BottomBanner() {
       {/* Gift - שני משמאל */}
       <TouchableOpacity 
         style={[styles.iconContainer, currentScreen === 'Gift' && styles.activeIconContainer]}
-        onPress={async () => {
-          await navigationOptimizer.optimizeNavigation('Gift');
+        onPress={() => {
           navigation.navigate('Gift');
         }}
       >
@@ -70,8 +67,7 @@ export default function BottomBanner() {
 
       <TouchableOpacity 
         style={[styles.homeContainer, currentScreen === 'Home' && styles.activeIconContainer]}
-        onPress={async () => {
-          await navigationOptimizer.optimizeNavigation('Home');
+        onPress={() => {
           navigation.navigate('Home');
         }}
       >
@@ -86,8 +82,7 @@ export default function BottomBanner() {
       {/* Calendar - רביעי משמאל */}
       <TouchableOpacity 
         style={[styles.iconContainer, currentScreen === 'Calendar' && styles.activeIconContainer]}
-        onPress={async () => {
-          await navigationOptimizer.optimizeNavigation('Calendar');
+        onPress={() => {
           navigation.navigate('Calendar');
         }}
       >
@@ -102,8 +97,7 @@ export default function BottomBanner() {
       {/* Volunteer - הכי ימני */}
       <TouchableOpacity 
         style={[styles.iconContainer, currentScreen === 'Volunteer' && styles.activeIconContainer]}
-        onPress={async () => {
-          await navigationOptimizer.optimizeNavigation('Volunteer');
+        onPress={() => {
           navigation.navigate('Volunteer', { from: currentScreen === 'Trophy' ? 'Trophy' : 'Home' });
         }}
       >

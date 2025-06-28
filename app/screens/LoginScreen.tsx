@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Animated, Easing, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { loginWithSupabase, signupWithSupabase } from '../db/supabaseApi';
-import { cacheWarmer } from '../utils/cacheWarmer';
 
 
 const COLORS = {
@@ -42,13 +41,7 @@ export default function LoginScreen({ navigation }: any) {
       console.log('📝 [Supabase] תוצאת התחברות:', user);
       
       if (user) {
-        console.log('✅ [Supabase] התחברות הצליחה, מחמם cache ועובר למסך הבית');
-        
-        // Warm cache in background for faster navigation
-        cacheWarmer.warmCache().catch(error => {
-          console.error('Cache warming failed:', error);
-        });
-        
+        console.log('✅ [Supabase] התחברות הצליחה, עובר למסך הבית');
         navigation.navigate('Home');
       } else {
         console.log('❌ [Supabase] התחברות נכשלה');

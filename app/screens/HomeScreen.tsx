@@ -29,9 +29,8 @@ import {
 } from '../db/supabaseApi';
 import type { VolunteerEvent, VolunteerRegistration } from '../types/types';
 import { User } from '../types/types';
-import { cacheManager } from '../utils/cacheManager';
 import { addCoinsUpdateListener, addEventDeletedListener, addTasksCompletedListener, emitCoinsUpdate, emitEventDeleted, emitTasksCompletedUpdate, removeCoinsUpdateListener, removeEventDeletedListener, removeTasksCompletedListener } from '../utils/eventEmitter';
-import { navigationOptimizer } from '../utils/navigationOptimizer';
+import { volunteerEventsManager } from '../utils/volunteerEvents';
 
 // --- ערכים מותאמים לעיצוב פרופורציונלי ---
 const STAGE_SIZE = 66;
@@ -63,59 +62,6 @@ const AVATAR_MESSAGES = {
   dailyTip: 'היי! יש לנו היום הזדמנויות התנדבות חדשות! 🎁',
 };
 
-// משפטי מוטיבציה והשבחה לכל שלב
-const MOTIVATION_MESSAGES = [
-  'הצעד הראשון הוא תמיד הקשה ביותר! 🌟',
-  'אתה בדרך הנכונה! המשך כך! 💪',
-  'יפה מאוד! אתה מתקדם נהדר! 🎯',
-  'רואים שאתה מתחיל להבין את הקטע! 🔥',
-  'חמש כבר? אתה אלוף אמיתי! 🏆',
-  'אתה באמצע הדרך! ממשיך בכוח! ⭐',
-  'מרשים! השביל שלך מתחיל להיראות! 🌈',
-  'שמונה שלבים! אתה כבר מומחה! 🎨',
-  'תשעה! התקדמות יוצאת דופן! 💎',
-  'עשרה! אתה באמת משהו מיוחד! 🚀',
-  'אחד עשר! אתה כבר לא רק מתחיל! 🌟',
-  'שנים עשר! רמה מקצועית אמיתית! 👑',
-  'שלושה עשר! אתה הופך לאגדה! ✨',
-  'ארבעה עשר! כמעט בפסגה! 🏔️',
-  'חמישה עשר! אתה השגת את הבלתי אפשרי! 🎆',
-  'שישה עשר! אתה יוצר היסטוריה! 🏆',
-  'שבעה עשר! רמת מאסטר אמיתית! 💫',
-  'שמונה עשר! אתה מעבר למצוינות! 🌟',
-  'תשעה עשר! אתה מגדיר מחדש את המילה הישג! 🎯',
-  'עשרים! אתה ברמה אחרת לגמרי! 🚀',
-  'כ"א! אתה פשוט פלא של הטבע! 🌠',
-  'כ"ב! אין גבולות למה שאתה יכול! 💥',
-  'כ"ג! אתה מלהיב ומעורר השראה! ⚡',
-  'כ"ד! רמת הישגיות בלתי רגילה! 🔮',
-  'כ"ה! אתה עונה על כל הציפיות! 🎭',
-  'כ"ו! המסע שלך הופך לסיפור! 📖',
-  'כ"ז! אתה מוכיח שהכל אפשרי! 🗝️',
-  'כ"ח! המנטליות שלך מדהימה! 🧠',
-  'כ"ט! אתה דוגמה לחיקוי! 🏅',
-  'שלושים! מספר עגול ומרשים! 🎪',
-  'ל"א! אתה ממשיך להפתיע! 🎨',
-  'ל"ב! ההתמדה שלך משפיעה! 🌊',
-  'ל"ג! אתה מלא אנרגיה חיובית! ☀️',
-  'ל"ד! הדרך שלך מאירה לאחרים! 💡',
-  'ל"ה! אתה משנה את החוקים! 🔄',
-  'ל"ו! יצירתיות ללא גבולות! 🎪',
-  'ל"ז! אתה מעורר התפעלות! 👏',
-  'ל"ח! המומנטום שלך מדבק! 🌪️',
-  'ל"ט! אתה כמעט ברמת על-אנושית! 🦸',
-  'ארבעים! מספר מיסטי ומיוחד! 🔯',
-  'מ"א! אתה עבר כל מבחן! ✅',
-  'מ"ב! התשובה לכל השאלות! 🤖',
-  'מ"ג! אתה יוצר מציאות חדשה! 🌍',
-  'מ"ד! הדמיון שלך הופך למציאות! 🌈',
-  'מ"ה! אתה הגדרה חדשה להצלחה! 💫',
-  'מ"ו! אתה צובר הישגים כמו אגדות! 📚',
-  'מ"ז! המסע שלך יהפוך ללגנדה! 🏛️',
-  'מ"ח! אתה מגיע לרמות חדשות! 🎯',
-  'מ"ט! כמעט חמישים! אתה פלא! ⭐',
-  'חמישים! אתה השגת את הבלתי ייאמן! 🎆'
-];
 
 // הגדרת האווטרים לפי שלבים
 const STAGE_AVATARS = {
@@ -159,6 +105,7 @@ export default function HomeScreen() {
   const prevCurrentAvatarRef = useRef(currentAvatar);
   const [messageQueue, setMessageQueue] = useState<string[]>([]);
   const [forceUpdateKey, setForceUpdateKey] = useState(0);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Admin specific state
   const [adminEvents, setAdminEvents] = useState<VolunteerEvent[]>([]);
@@ -201,9 +148,6 @@ export default function HomeScreen() {
         setCurrentUser(prev => {
           if (prev) {
             const updatedUser = { ...prev, tasksCompleted };
-            console.log('🔄 Updating user in state:', { old: prev.tasksCompleted, new: tasksCompleted });
-            // Update cache as well
-            cacheManager.setUserData(updatedUser);
             return updatedUser;
           }
           return null;
@@ -261,8 +205,7 @@ export default function HomeScreen() {
       console.log('🔄 Current user before load:', currentUser?.tasksCompleted);
       
       // Track navigation for optimization
-      navigationOptimizer.trackNavigation('Home');
-      
+      // navigationOptimizer.trackNavigation('Home');
       // Use cache first for instant loading, then refresh in background
       loadUserData(false).then(() => {
         console.log('🔄 User data loaded from cache, forcing update');
@@ -291,58 +234,28 @@ export default function HomeScreen() {
   // טעינת נתוני המשתמש - עם global cache manager
   const loadUserData = useCallback(async (forceRefresh = false) => {
     try {
-      // Check cache first (except for force refresh)
-      if (!forceRefresh) {
-        const cachedUser = cacheManager.getUserData();
-        if (cachedUser) {
-          console.log('📦 Using cached user data from global cache');
-          setCurrentUser(cachedUser);
-          setUserCoins(cachedUser.coins || 0);
-          setIsLoadingUser(false);
-          
-          // Load admin data if needed (from cache or background)
-          if (cachedUser.isAdmin) {
-            loadAdminData(); // Background load
-          }
-          return;
-        }
-      }
-
       setIsLoadingUser(true);
-      // Use Supabase direct connection
+      setLoadError(null);
       const user = await getCurrentUserFromSupabase();
+      console.log('Fetched user:', user);
       if (user) {
-        // Update global cache
-        cacheManager.setUserData(user);
-        
         setCurrentUser(user);
         setUserCoins(user.coins || 0);
-        
-        console.log('✅ [Supabase] נתוני משתמש נטענו:', { 
-          name: user.firstName, 
-          coins: user.coins, 
-          tasksCompleted: user.tasksCompleted,
-          isAdmin: user.isAdmin
-        });
-
-        // Set navigation context for optimization
-        navigationOptimizer.setUserContext(user.id, user.isAdmin || false);
-
-        // טעינת נתונים נוספים למנהלים - ברקע
         if (user.isAdmin) {
-          console.log('👑 [Supabase] Loading admin data in background...');
-          // Force load admin data to ensure it's always loaded
           setTimeout(() => {
-            loadAdminData(forceRefresh); // Use same refresh flag as user data
+            loadAdminData(forceRefresh);
           }, 100);
         } else {
-          // Preload volunteer data for regular users in background
-          console.log('🚀 Preloading volunteer data in background...');
           preloadVolunteerData(user.id);
         }
+      } else {
+        setCurrentUser(null);
+        setLoadError('לא נמצא משתמש מחובר. אנא התחבר מחדש.');
       }
     } catch (error) {
       console.error('❌ [Supabase] שגיאה בטעינת נתוני משתמש:', error);
+      setCurrentUser(null);
+      setLoadError('שגיאה בטעינת נתוני משתמש.');
     } finally {
       setIsLoadingUser(false);
     }
@@ -350,60 +263,30 @@ export default function HomeScreen() {
 
   const loadAdminData = async (forceRefresh = false) => {
     try {
+      setLoadError(null);
       if (!currentUser?.id) {
         console.log('❌ No current user ID available for admin data - skipping without clearing');
-        return; // Don't clear data, just skip loading
+        return;
       }
-
-      // Prevent multiple simultaneous loads
       if (isLoadingAdminData && !forceRefresh) {
         console.log('📊 Admin data already loading, skipping...');
         return;
       }
-
       setIsLoadingAdminData(true);
-      
-      // Check cache first
-      if (!forceRefresh) {
-        const cachedEvents = cacheManager.getAdminEvents(currentUser.id);
-        const cachedRegistrations = cacheManager.getAdminRegistrations(currentUser.id);
-        
-        if (cachedEvents && cachedRegistrations) {
-          console.log('📦 Using cached admin data from global cache');
-          setAdminEvents(cachedEvents);
-          setAdminRegistrations(cachedRegistrations);
-          setIsLoadingAdminData(false);
-          return;
-        }
-      }
-
-      console.log('📊 Loading admin data for user:', currentUser.id);
-      
       const [events, allRegistrations] = await Promise.all([
         getVolunteerEventsByAdmin(currentUser.id),
         getAllVolunteerRegistrations()
       ]);
-      
-      // Filter registrations to only include those for events created by this admin
       const adminEventIds = events.map(event => event.id);
       const filteredRegistrations = allRegistrations.filter(registration => 
         adminEventIds.includes(registration.event_id)
       );
-      
-      // Update global cache
-      cacheManager.setAdminData(events, filteredRegistrations, currentUser.id);
-      
-      console.log('📊 Loaded events:', events.length);
-      console.log('📊 Filtered registrations:', filteredRegistrations.length, 'out of', allRegistrations.length);
-      
-
-      
       setAdminEvents(events);
       setAdminRegistrations(filteredRegistrations);
-      
       console.log('📊 Admin data updated in state');
     } catch (error) {
       console.error('Error loading admin data:', error);
+      setLoadError('שגיאה בטעינת נתוני אדמין.');
     } finally {
       setIsLoadingAdminData(false);
     }
@@ -412,26 +295,12 @@ export default function HomeScreen() {
   // Preload volunteer data in background for faster navigation
   const preloadVolunteerData = async (userId: string) => {
     try {
-      // Check if already cached
-      const cachedEvents = cacheManager.getVolunteerEvents();
-      const cachedRegistrations = cacheManager.getUserRegistrations(userId);
-      
-      if (cachedEvents && cachedRegistrations) {
-        console.log('📦 Volunteer data already cached');
-        return;
-      }
-
-      console.log('🚀 Preloading volunteer data...');
-      // Import volunteerEventsManager dynamically to avoid circular dependencies
-      const { volunteerEventsManager } = await import('../utils/volunteerEvents');
-      
+      // Use volunteerEventsManager's cache
       const [events, registrations] = await Promise.all([
         volunteerEventsManager.getAllEvents(),
         volunteerEventsManager.getUserRegistrations(userId)
       ]);
-      
-      // Cache the preloaded data
-      cacheManager.setVolunteerData(events, registrations, userId);
+      // No need to set cache manually
       console.log('✅ Volunteer data preloaded and cached');
     } catch (error) {
       console.error('❌ Error preloading volunteer data:', error);
@@ -874,11 +743,6 @@ export default function HomeScreen() {
           newlyOpenedStage = i;
           break;
         }
-      }
-      if (newlyOpenedStage !== -1) {
-        const message = MOTIVATION_MESSAGES[newlyOpenedStage] || MOTIVATION_MESSAGES[MOTIVATION_MESSAGES.length - 1];
-        setMotivationMessage(message);
-        setShowMotivationBanner(true);
       }
     }
     
@@ -1329,6 +1193,20 @@ export default function HomeScreen() {
         <View style={styles.loadingContent}>
           <Text style={styles.loadingIcon}>🏠</Text>
           <Text style={styles.loadingText}>טוען את הבית שלך...</Text>
+          {loadError && <Text style={{ color: 'red', marginTop: 20 }}>{loadError}</Text>}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Fallback UI if user is null after loading
+  if (!isLoadingUser && !currentUser) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <View style={styles.loadingContent}>
+          <Text style={styles.loadingIcon}>🏠</Text>
+          <Text style={styles.loadingText}>לא נמצא משתמש מחובר</Text>
+          {loadError && <Text style={{ color: 'red', marginTop: 20 }}>{loadError}</Text>}
         </View>
       </SafeAreaView>
     );
@@ -1371,7 +1249,6 @@ export default function HomeScreen() {
           <TouchableOpacity 
             style={styles.adminActionButton}
             onPress={async () => {
-              await navigationOptimizer.optimizeNavigation('AdminUsers');
               navigation.navigate('AdminUsers' as any);
             }}
           >
@@ -1528,7 +1405,6 @@ export default function HomeScreen() {
         <SafeAreaView style={styles.adminBottomNav} edges={['bottom']}>
           <View style={styles.adminBottomNavContent}>
             <TouchableOpacity style={styles.adminNavButton} onPress={async () => {
-              await navigationOptimizer.optimizeNavigation('AdminUsers');
               navigation.navigate('AdminUsers' as any);
             }}>
               <Text style={styles.adminNavIcon}>🔧</Text>
@@ -1543,7 +1419,6 @@ export default function HomeScreen() {
             </TouchableOpacity>
             
             <TouchableOpacity style={styles.adminNavButton} onPress={async () => {
-              await navigationOptimizer.optimizeNavigation('Volunteer');
               navigation.navigate('Volunteer', { from: 'Home' });
             }}>
               <Text style={styles.adminNavIcon}>🤝</Text>

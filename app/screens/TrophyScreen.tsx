@@ -2,20 +2,19 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Dimensions,
-  Image,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Dimensions,
+    Image,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { getAllUsersFromSupabase, getCurrentUserFromSupabase } from '../db/supabaseApi';
 import { User } from '../types/types';
 import { addCoinsUpdateListener, addTasksCompletedListener, removeCoinsUpdateListener, removeTasksCompletedListener } from '../utils/eventEmitter';
-import { navigationOptimizer } from '../utils/navigationOptimizer';
 
 const { width } = Dimensions.get('window');
 
@@ -165,8 +164,6 @@ export default function TrophyScreen() {
   // רענון נתונים כשחוזרים למסך
   useFocusEffect(
     React.useCallback(() => {
-      // Track navigation for optimization
-      navigationOptimizer.trackNavigation('Trophy');
       loadData();
     }, [loadData])
   );

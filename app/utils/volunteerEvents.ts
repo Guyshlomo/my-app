@@ -1,4 +1,3 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { cancelVolunteerRegistration, getAllVolunteerEvents, getUserVolunteerRegistrations, registerForVolunteerEvent } from '../db/supabaseApi';
 
 export interface VolunteerEvent {
@@ -112,105 +111,13 @@ export const VOLUNTEER_EVENTS: VolunteerEvent[] = [
   },
 ];
 
-// Cache configuration
-const CACHE_DURATION = 3 * 60 * 1000; // 3 minutes for volunteer events
-const CACHE_KEYS = {
-  ALL_EVENTS: 'cache_volunteer_events',
-  USER_REGISTRATIONS: 'cache_user_registrations',
-};
-
-// In-memory cache
-let volunteerCache: {
-  allEvents?: { data: any[]; timestamp: number };
-  userRegistrations?: { data: any[]; timestamp: number };
-} = {};
-
-// Cache utilities
-const isCacheValid = (timestamp: number): boolean => {
-  return Date.now() - timestamp < CACHE_DURATION;
-};
-
-const setMemoryCache = (key: string, data: any): void => {
-  volunteerCache[key as keyof typeof volunteerCache] = {
-    data,
-    timestamp: Date.now(),
-  };
-};
-
-const getMemoryCache = (key: string): any => {
-  const cached = volunteerCache[key as keyof typeof volunteerCache];
-  if (cached && isCacheValid(cached.timestamp)) {
-    return cached.data;
-  }
-  return null;
-};
-
-const setAsyncCache = async (key: string, data: any): Promise<void> => {
-  try {
-    const cacheData = {
-      data,
-      timestamp: Date.now(),
-    };
-    await AsyncStorage.setItem(key, JSON.stringify(cacheData));
-  } catch (error) {
-    console.warn('Failed to set volunteer cache:', error);
-  }
-};
-
-const getAsyncCache = async (key: string): Promise<any> => {
-  try {
-    const cached = await AsyncStorage.getItem(key);
-    if (cached) {
-      const parsedCache = JSON.parse(cached);
-      if (isCacheValid(parsedCache.timestamp)) {
-        return parsedCache.data;
-      }
-    }
-  } catch (error) {
-    console.warn('Failed to get volunteer cache:', error);
-  }
-  return null;
-};
-
-const clearVolunteerCache = async (): Promise<void> => {
-  try {
-    volunteerCache = {};
-    await AsyncStorage.multiRemove([
-      CACHE_KEYS.ALL_EVENTS,
-      CACHE_KEYS.USER_REGISTRATIONS,
-    ]);
-  } catch (error) {
-    console.warn('Failed to clear volunteer cache:', error);
-  }
-};
-
 export const volunteerEventsManager = {
-  // קבלת כל אירועי ההתנדבות עם cache
+  // קבלת כל אירועי ההתנדבות ללא cache
   async getAllEvents(): Promise<any[]> {
     try {
-      // Check memory cache first
-      const cachedEvents = getMemoryCache('allEvents');
-      if (cachedEvents) {
-        console.log('📱 החזרת אירועי התנדבות מ-memory cache');
-        return cachedEvents;
-      }
-
-      // Check AsyncStorage cache
-      const asyncCachedEvents = await getAsyncCache(CACHE_KEYS.ALL_EVENTS);
-      if (asyncCachedEvents) {
-        console.log('💾 החזרת אירועי התנדבות מ-AsyncStorage cache');
-        setMemoryCache('allEvents', asyncCachedEvents);
-        return asyncCachedEvents;
-      }
-
-      // Fetch from database
+      // Fetch from database only
       console.log('🌐 טוען אירועי התנדבות מ-Supabase');
       const events = await getAllVolunteerEvents();
-      
-      // Cache the result
-      setMemoryCache('allEvents', events);
-      await setAsyncCache(CACHE_KEYS.ALL_EVENTS, events);
-      
       return events;
     } catch (error) {
       console.error('Error getting volunteer events:', error);
@@ -218,36 +125,16 @@ export const volunteerEventsManager = {
     }
   },
 
-  // קבלת רישומי המשתמש עם cache
+  // קבלת רישומי המשתמש ללא cache
   async getUserRegistrations(userId?: string): Promise<any[]> {
     try {
-      // Check memory cache first
-      const cachedRegistrations = getMemoryCache('userRegistrations');
-      if (cachedRegistrations) {
-        console.log('📱 החזרת רישומי התנדבות מ-memory cache');
-        return cachedRegistrations;
-      }
-
-      // Check AsyncStorage cache
-      const asyncCachedRegistrations = await getAsyncCache(CACHE_KEYS.USER_REGISTRATIONS);
-      if (asyncCachedRegistrations) {
-        console.log('💾 החזרת רישומי התנדבות מ-AsyncStorage cache');
-        setMemoryCache('userRegistrations', asyncCachedRegistrations);
-        return asyncCachedRegistrations;
-      }
-
-      // Fetch from database
-      console.log('🌐 טוען רישומי התנדבות מ-Supabase');
       if (!userId) {
         console.warn('No userId provided for getUserRegistrations');
         return [];
       }
+      // Fetch from database only
+      console.log('🌐 טוען רישומי התנדבות מ-Supabase');
       const registrations = await getUserVolunteerRegistrations(userId);
-      
-      // Cache the result
-      setMemoryCache('userRegistrations', registrations);
-      await setAsyncCache(CACHE_KEYS.USER_REGISTRATIONS, registrations);
-      
       return registrations;
     } catch (error) {
       console.error('Error getting user registrations:', error);
@@ -255,16 +142,10 @@ export const volunteerEventsManager = {
     }
   },
 
-  // רישום לאירוע התנדבות
   async registerForEvent(eventId: string, userId: string): Promise<{ success: boolean; error?: string }> {
     try {
       const result = await registerForVolunteerEvent(eventId, userId);
-      if (result) {
-        // Invalidate caches since registration changed
-        await this.clearCache();
-        return { success: true };
-      }
-      return { success: false, error: 'לא ניתן להירשם לאירוע' };
+      return result ? { success: true } : { success: false, error: 'לא ניתן להירשם לאירוע' };
     } catch (error: any) {
       console.error('Error registering for event:', error);
       return { 
@@ -274,14 +155,9 @@ export const volunteerEventsManager = {
     }
   },
 
-  // ביטול רישום לאירוע
   async cancelRegistration(eventId: string, userId: string): Promise<boolean> {
     try {
       const result = await cancelVolunteerRegistration(eventId, userId);
-      if (result) {
-        // Invalidate caches since registration changed
-        await this.clearCache();
-      }
       return result;
     } catch (error) {
       console.error('Error canceling registration:', error);
@@ -289,22 +165,8 @@ export const volunteerEventsManager = {
     }
   },
 
-  // ניקוי cache
   async clearCache(): Promise<void> {
-    await clearVolunteerCache();
-  },
-
-  // preload נתונים
-  async preloadData(userId?: string): Promise<void> {
-    try {
-      console.log('🚀 Preloading volunteer data...');
-      await Promise.all([
-        this.getAllEvents(),
-        this.getUserRegistrations(userId),
-      ]);
-      console.log('✅ Volunteer data preloaded successfully');
-    } catch (error) {
-      console.error('❌ Error preloading volunteer data:', error);
-    }
+    // No cache to clear
+    return;
   }
 }; 

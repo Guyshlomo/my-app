@@ -9,30 +9,29 @@
  * 5. שיפור ביצועים - פחות אנימציות מיותרות
  */
 
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  Animated,
-  Dimensions,
-  Easing,
-  Image,
-  Modal,
-  RefreshControl,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  Vibration,
-  View
+    Animated,
+    Dimensions,
+    Easing,
+    Image,
+    Modal,
+    RefreshControl,
+    SafeAreaView,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    Vibration,
+    View
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import QRCode from 'react-native-qrcode-svg';
-import { getCurrentUserFromSupabase, savePurchasedCoupon, updateUserInSupabase, getAllCoupons, getCurrentUserPurchasedCoupons } from '../db/supabaseApi';
+import { getAllCoupons, getCurrentUserFromSupabase, getCurrentUserPurchasedCoupons, savePurchasedCoupon, updateUserInSupabase } from '../db/supabaseApi';
 import { addCoinsUpdateListener, removeCoinsUpdateListener } from '../utils/eventEmitter';
-import { navigationOptimizer } from '../utils/navigationOptimizer';
 
 const { width, height } = Dimensions.get('window');
 
@@ -245,15 +244,6 @@ function GiftScreen() {
       setRefreshing(false);
     }
   };
-
-  // Track navigation when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      navigationOptimizer.trackNavigation('Gift');
-      // רענון אוטומטי של הקופונים כשמגיעים לדף
-      fetchCoupons();
-    }, [])
-  );
 
   // הצגה מיידית של קופונים ללא אנימציה
   useEffect(() => {

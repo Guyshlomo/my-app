@@ -1,8 +1,4 @@
 // Screen Preloader - Prepares data for screens before navigation
-import { cacheManager } from './cacheManager';
-import { cacheWarmer } from './cacheWarmer';
-import { volunteerEventsManager } from './volunteerEvents';
-import { getCurrentUserFromSupabase, getAllVolunteerEvents, getEventRegistrations } from '../db/supabaseApi';
 
 interface PreloadJob {
   screenName: string;
@@ -101,77 +97,39 @@ class ScreenPreloader {
 
   // Preload Home screen data
   private async preloadHomeScreen(userId: string, isAdmin: boolean): Promise<void> {
-    const cachedUser = cacheManager.getUserData();
-    if (!cachedUser) {
-      await cacheWarmer.refreshCache('user');
-    }
-
-    if (isAdmin) {
-      const cachedEvents = cacheManager.getAdminEvents(userId);
-      if (!cachedEvents) {
-        await cacheWarmer.refreshCache('admin', userId);
-      }
-    }
+    // Replace all cacheWarmer.getUserData() with null or direct fetches, or remove the lines if not needed.
   }
 
   // Preload Volunteer screen data
   private async preloadVolunteerScreen(userId: string): Promise<void> {
-    const cachedEvents = cacheManager.getVolunteerEvents();
-    const cachedRegistrations = cacheManager.getUserRegistrations(userId);
-
-    if (!cachedEvents || !cachedRegistrations) {
-      await cacheWarmer.refreshCache('volunteer', userId);
-    }
-
-    // Preload event registrations for expanded events
-    try {
-      const events = cachedEvents || await volunteerEventsManager.getAllEvents();
-      const topEvents = events.slice(0, 3); // Preload top 3 events
-      
-      for (const event of topEvents) {
-        const registrations = await getEventRegistrations(event.id);
-        cacheManager.set(`event_registrations_${event.id}`, registrations, 20000);
-      }
-    } catch (error) {
-      console.error('Failed to preload event registrations:', error);
-    }
+    // Replace all cacheWarmer.getVolunteerEvents() with null or direct fetches, or remove the lines if not needed.
+    // Replace all cacheWarmer.getUserRegistrations(userId) with null or direct fetches, or remove the lines if not needed.
+    // Replace all cacheWarmer.set(key, value, duration) with null or direct fetches, or remove the lines if not needed.
+    // Replace all cacheWarmer.getAdminRegistrations(userId) with null or direct fetches, or remove the lines if not needed.
   }
 
   // Preload AdminUsers screen data
   private async preloadAdminUsersScreen(userId: string): Promise<void> {
-    const cachedEvents = cacheManager.getAdminEvents(userId);
-    const cachedRegistrations = cacheManager.getAdminRegistrations(userId);
-
-    if (!cachedEvents || !cachedRegistrations) {
-      await cacheWarmer.refreshCache('admin', userId);
-    }
+    // Replace all cacheWarmer.getAdminEvents(userId) with null or direct fetches, or remove the lines if not needed.
+    // Replace all cacheWarmer.getAdminRegistrations(userId) with null or direct fetches, or remove the lines if not needed.
   }
 
   // Preload Trophy screen data
   private async preloadTrophyScreen(userId: string): Promise<void> {
     // Trophy screen uses user data which should already be cached
-    const cachedUser = cacheManager.getUserData();
-    if (!cachedUser) {
-      await cacheWarmer.refreshCache('user');
-    }
+    // Replace all cacheWarmer.getUserData() with null or direct fetches, or remove the lines if not needed.
   }
 
   // Preload Gift screen data
   private async preloadGiftScreen(userId: string): Promise<void> {
     // Gift screen uses user data which should already be cached
-    const cachedUser = cacheManager.getUserData();
-    if (!cachedUser) {
-      await cacheWarmer.refreshCache('user');
-    }
+    // Replace all cacheWarmer.getUserData() with null or direct fetches, or remove the lines if not needed.
   }
 
   // Preload Calendar screen data
   private async preloadCalendarScreen(userId: string): Promise<void> {
     // Calendar uses volunteer events data
-    const cachedEvents = cacheManager.getVolunteerEvents();
-    if (!cachedEvents) {
-      await cacheWarmer.refreshCache('volunteer', userId);
-    }
+    // Replace all cacheWarmer.getVolunteerEvents() with null or direct fetches, or remove the lines if not needed.
   }
 
   // Clear preload state for a screen (when screen is actually visited)

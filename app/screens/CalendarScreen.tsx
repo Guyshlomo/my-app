@@ -1,12 +1,11 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
-import React, { useCallback, useEffect, useState } from 'react';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
+import React, { useEffect, useState } from 'react';
 import { I18nManager, Image, ImageBackground, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { getCurrentUserFromSupabase, getUserVolunteerRegistrations } from '../db/supabaseApi';
-import { volunteerEventsManager } from '../utils/volunteerEvents';
 import { addTasksCompletedListener, removeTasksCompletedListener } from '../utils/eventEmitter';
-import { navigationOptimizer } from '../utils/navigationOptimizer';
+import { volunteerEventsManager } from '../utils/volunteerEvents';
 
 // פונקציה להמרת dd.mm.yyyy ל-yyyy-mm-dd
 function convertToISO(dateStr: string) {
@@ -37,13 +36,6 @@ function CalendarScreen() {
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const isFocused = useIsFocused();
-
-  // Track navigation when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      navigationOptimizer.trackNavigation('Calendar');
-    }, [])
-  );
 
   useEffect(() => {
     if (isFocused) {
