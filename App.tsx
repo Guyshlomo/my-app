@@ -18,7 +18,7 @@ export default function App() {
       
       // Start preloading volunteer events data
       const preloadPromises = [
-        volunteerEventsManager.preloadData(),
+        volunteerEventsManager.getAllEvents(),
       ];
 
       // Wait for all data to be preloaded

@@ -49,19 +49,25 @@ export default function LoginScreen({ navigation }: any) {
       }
     } catch (error: any) {
       console.log('💥 [Supabase] שגיאה בתהליך התחברות:', error);
-      Alert.alert('שגיאה', error.message || 'אימייל או סיסמה שגויים');
+      
+      // Provide more specific error messages
+      let errorMessage = 'אימייל או סיסמה שגויים';
+      
+      if (error.message?.includes('Invalid login credentials')) {
+        errorMessage = 'אימייל או סיסמה שגויים. אנא בדוק את הפרטים ונסה שוב.';
+      } else if (error.message?.includes('Email not confirmed')) {
+        errorMessage = 'נדרש לאמת את כתובת האימייל. אנא בדוק את תיבת הדואר שלך.';
+      } else if (error.message?.includes('Too many requests')) {
+        errorMessage = 'יותר מדי ניסיונות התחברות. אנא נסה שוב מאוחר יותר.';
+      }
+      
+      Alert.alert('שגיאה בהתחברות', errorMessage);
     }
   };
 
   const handleFacebookSignup = async () => {
     try {
-      Alert.alert('מתחבר...', 'מתחבר באמצעות פייסבוק...');
-
-      const response = await loginWithSupabase({email: 'guy1254@gmail.com', password: '123123'})
-
-      const result = await response;
-
-  
+      Alert.alert('בפיתוח', 'התחברות באמצעות פייסבוק עדיין בפיתוח. אנא השתמש בהתחברות רגילה או בגוגל.');
     } catch (error: any) {
       console.error('Facebook signup error:', error);
       Alert.alert('שגיאה', error.message || 'שגיאה בהרשמה באמצעות פייסבוק');
