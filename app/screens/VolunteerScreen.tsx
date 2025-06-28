@@ -14,15 +14,15 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Animated, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { RootStackParamList } from '../MainNavigator';
-import { cancelVolunteerRegistration, completeVolunteerEvent, deleteVolunteerEvent, getCurrentUserFromSupabase, getEventRegistrations, getUserById, registerForVolunteerEvent } from '../db/supabaseApi';
+import { cancelVolunteerRegistration, completeVolunteerEvent, deleteVolunteerEvent, getCurrentUserFromSupabase, getEventRegistrations, registerForVolunteerEvent } from '../db/supabaseApi';
 import type { User, VolunteerEvent, VolunteerRegistration } from '../types/types';
-import { addEventDeletedListener, emitEventDeleted, removeEventDeletedListener } from '../utils/eventEmitter';
-import { volunteerEventsManager } from '../utils/volunteerEvents';
 import { cacheManager } from '../utils/cacheManager';
+import { addEventDeletedListener, emitEventDeleted, removeEventDeletedListener } from '../utils/eventEmitter';
 import { navigationOptimizer } from '../utils/navigationOptimizer';
+import { volunteerEventsManager } from '../utils/volunteerEvents';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
 
@@ -611,12 +611,6 @@ function VolunteerScreen() {
 
         <View style={styles.summaryBar}>
           <Text style={styles.summaryText}>סה״כ {events.length} התנדבויות פעילות</Text>
-          <TouchableOpacity 
-            style={[styles.filterBtn, { backgroundColor: '#4CAF50' }]} 
-            onPress={() => navigation.navigate('AdminUsers' as any)}
-          >
-            <Text style={styles.filterBtnText}>+ צור חדשה</Text>
-          </TouchableOpacity>
         </View>
 
         <ScrollView 
@@ -1155,12 +1149,12 @@ const styles = StyleSheet.create({
   summaryBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     backgroundColor: '#E3F2FD',
     padding: 10,
     borderRadius: 14,
     margin: 12,
-    marginBottom: 0,
+    marginBottom: 15,
   },
   summaryText: {
     fontSize: 16,

@@ -1367,16 +1367,6 @@ export default function HomeScreen() {
 
 
         <View style={styles.adminActionsContainer}>
-          <TouchableOpacity 
-            style={styles.adminActionButton}
-            onPress={async () => {
-              await navigationOptimizer.optimizeNavigation('AdminUsers');
-              navigation.navigate('AdminUsers' as any, { openCreateForm: true });
-            }}
-          >
-            <Text style={styles.adminActionIcon}>➕</Text>
-            <Text style={styles.adminActionText}>צור התנדבות</Text>
-          </TouchableOpacity>
           
           <TouchableOpacity 
             style={styles.adminActionButton}

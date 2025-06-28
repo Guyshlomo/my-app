@@ -10,9 +10,10 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { createVolunteerEvent, deleteVolunteerEvent, getVolunteerEventsByAdmin, getCurrentUserFromSupabase, getEventRegistrations } from '../db/supabaseApi';
-import type { CreateVolunteerEventData, User, VolunteerEvent, VolunteerRegistration } from '../types/types';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { supabase } from '../config/supabase';
+import { createVolunteerEvent, deleteVolunteerEvent, getCurrentUserFromSupabase, getEventRegistrations, getVolunteerEventsByAdmin } from '../db/supabaseApi';
+import type { CreateVolunteerEventData, User, VolunteerEvent, VolunteerRegistration } from '../types/types';
 
 
 export default function AdminUsersScreen({ navigation, route }: any) {
@@ -24,6 +25,8 @@ export default function AdminUsersScreen({ navigation, route }: any) {
   const [selectedEventParticipants, setSelectedEventParticipants] = useState<VolunteerRegistration[]>([]);
   const [selectedEventTitle, setSelectedEventTitle] = useState<string>('');
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [isDatePickerVisible, setDatePickerVisible] = useState(false);
+  const [isTimePickerVisible, setTimePickerVisible] = useState(false);
   // Removed users state and activeTab - admin can only manage events
   
   // Form state for creating events
@@ -34,7 +37,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
     date: '',
     time: '',
     max_participants: 10,
-    coins_reward: 50,
+    coins_reward: 5,
     image_url: ''
   });
 
@@ -55,7 +58,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
       description: 'עזרה וליווי לאוכלוסיית הקשישים',
       location: 'בית אבות מקומי',
       max_participants: 8,
-      coins_reward: 25,
+      coins_reward: 15,
       icon: '👵'
     },
     {
@@ -64,7 +67,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
       description: 'סיוע לימודי וחינוכי לילדים',
       location: 'בית ספר יסודי',
       max_participants: 10,
-      coins_reward: 30,
+      coins_reward: 20,
       icon: '📚'
     },
     {
@@ -73,7 +76,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
       description: 'חלוקת מזון לנזקקים',
       location: 'מרכז קהילתי',
       max_participants: 12,
-      coins_reward: 22,
+      coins_reward: 10,
       icon: '🍞'
     },
     {
@@ -82,7 +85,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
       description: 'עזרה בארגון וניהול אירועים קהילתיים',
       location: 'מתחם אירועים',
       max_participants: 20,
-      coins_reward: 35,
+      coins_reward: 15,
       icon: '🎉'
     },
     {
@@ -91,7 +94,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
       description: 'ליווי וסיוע במוסדות רפואיים',
       location: 'בית חולים מקומי',
       max_participants: 6,
-      coins_reward: 40,
+      coins_reward: 20,
       icon: '🏥'
     }
   ];
@@ -160,8 +163,12 @@ export default function AdminUsersScreen({ navigation, route }: any) {
   // Removed handleToggleAdmin - admin cannot manage other users
 
   const handleCreateEvent = async () => {
-    if (!newEvent.title || !newEvent.location || !newEvent.date || !newEvent.time) {
+    if (!newEvent.title || !newEvent.location || !newEvent.date || !newEvent.time || !newEvent.coins_reward) {
       Alert.alert('שגיאה', 'נא למלא את כל השדות הנדרשים');
+      return;
+    }
+    if (![5,10,15,20].includes(newEvent.coins_reward)) {
+      Alert.alert('שגיאה', 'כמות מטבעות לא תקינה');
       return;
     }
 
@@ -210,7 +217,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
         date: '',
         time: '',
         max_participants: 10,
-        coins_reward: 50,
+        coins_reward: 5,
         image_url: ''
       });
       await loadData();
@@ -320,7 +327,26 @@ export default function AdminUsersScreen({ navigation, route }: any) {
     setShowCreateModal(true);
   };
 
+  const handleConfirmDate = (date: Date) => {
+    setNewEvent(prev => ({ ...prev, date: date.toISOString().split('T')[0] }));
+    setDatePickerVisible(false);
+  };
 
+  const handleCancelDate = () => {
+    setDatePickerVisible(false);
+  };
+
+  const handleConfirmTime = (date: Date) => {
+    // Format as HH:MM
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    setNewEvent(prev => ({ ...prev, time: `${hours}:${minutes}` }));
+    setTimePickerVisible(false);
+  };
+
+  const handleCancelTime = () => {
+    setTimePickerVisible(false);
+  };
 
   if (loading) {
     return (
@@ -456,14 +482,6 @@ export default function AdminUsersScreen({ navigation, route }: any) {
 
             <View style={styles.formSection}>
               <Text style={styles.inputLabel}>מיקום *</Text>
-              <TextInput
-                style={styles.input}
-                value={newEvent.location}
-                onChangeText={(text) => setNewEvent(prev => ({ ...prev, location: text }))}
-                placeholder="אנא בחר קיבוץ מלמטה"
-                returnKeyType="next"
-              />
-              {/* Quick Location Suggestions */}
               <View style={styles.quickLocationBar}>
                 {[
                   'ניר-עם',
@@ -475,6 +493,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
                   'ברור-חיל',
                   'גבים',
                   'דורות',
+                  'מפלסים',
                   'רוחמה'
                 ].map((location) => (
                   <TouchableOpacity
@@ -497,24 +516,44 @@ export default function AdminUsersScreen({ navigation, route }: any) {
             </View>
 
             <View style={styles.formSection}>
-              <Text style={styles.inputLabel}>תאריך * (ניתן להזין DD-MM-YYYY או YYYY-MM-DD)</Text>
-              <TextInput
+              <Text style={styles.inputLabel}>תאריך *</Text>
+              <TouchableOpacity
                 style={styles.input}
-                value={newEvent.date}
-                onChangeText={(text) => setNewEvent(prev => ({ ...prev, date: text }))}
-                placeholder="31-12-2024 או 2024-12-31"
-                returnKeyType="next"
+                onPress={() => setDatePickerVisible(true)}
+              >
+                <Text style={{ color: newEvent.date ? '#222' : '#888', textAlign: 'right', width: '100%' }}>
+                  {newEvent.date ? new Date(newEvent.date).toLocaleDateString('he-IL') : 'בחר תאריך'}
+                </Text>
+              </TouchableOpacity>
+              <DateTimePickerModal
+                isVisible={isDatePickerVisible}
+                mode="date"
+                onConfirm={handleConfirmDate}
+                onCancel={handleCancelDate}
+                minimumDate={new Date()}
+                display="spinner"
+                locale="he-IL"
               />
             </View>
 
             <View style={styles.formSection}>
               <Text style={styles.inputLabel}>שעה * (HH:MM)</Text>
-              <TextInput
+              <TouchableOpacity
                 style={styles.input}
-                value={newEvent.time}
-                onChangeText={(text) => setNewEvent(prev => ({ ...prev, time: text }))}
-                placeholder="14:30"
-                returnKeyType="next"
+                onPress={() => setTimePickerVisible(true)}
+              >
+                <Text style={{ color: newEvent.time ? '#222' : '#888', textAlign: 'right', width: '100%' }}>
+                  {newEvent.time ? newEvent.time : 'בחר שעה'}
+                </Text>
+              </TouchableOpacity>
+              <DateTimePickerModal
+                isVisible={isTimePickerVisible}
+                mode="time"
+                onConfirm={handleConfirmTime}
+                onCancel={handleCancelTime}
+                display="spinner"
+                locale="he-IL"
+                minuteInterval={5}
               />
               {/* Quick Time Suggestions */}
               <View style={styles.quickTimeBar}>
@@ -552,14 +591,25 @@ export default function AdminUsersScreen({ navigation, route }: any) {
 
             <View style={styles.formSection}>
               <Text style={styles.inputLabel}>תגמול מטבעות</Text>
-              <TextInput
-                style={styles.input}
-                value={newEvent.coins_reward?.toString()}
-                onChangeText={(text) => setNewEvent(prev => ({ ...prev, coins_reward: parseInt(text) || 50 }))}
-                placeholder="50"
-                keyboardType="numeric"
-                returnKeyType="done"
-              />
+              <View style={styles.quickCoinsBar}>
+                {[5, 10, 15, 20].map((reward) => (
+                  <TouchableOpacity
+                    key={reward}
+                    style={[
+                      styles.quickCoinsButton,
+                      newEvent.coins_reward === reward && styles.quickCoinsButtonActive
+                    ]}
+                    onPress={() => setNewEvent(prev => ({ ...prev, coins_reward: reward }))}
+                  >
+                    <Text style={[
+                      styles.quickCoinsText,
+                      newEvent.coins_reward === reward && styles.quickCoinsTextActive
+                    ]}>
+                      {reward}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
             </View>
 
 
@@ -1255,30 +1305,36 @@ const styles = StyleSheet.create({
   // Quick Location Selection Styles
   quickLocationBar: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 8,
     flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 8,
+    justifyContent: 'flex-end',
   },
   quickLocationButton: {
-    backgroundColor: '#f8f9fa',
-    borderWidth: 1,
-    borderColor: '#e9ecef',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    minWidth: 72,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    marginBottom: 6,
   },
   quickLocationButtonActive: {
-    backgroundColor: '#2196F3',
-    borderColor: '#2196F3',
+    backgroundColor: '#B7EFC5',
+    borderColor: '#388e3c',
   },
   quickLocationText: {
-    fontSize: 12,
-    color: '#495057',
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#222',
+    textAlign: 'center',
   },
   quickLocationTextActive: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: '#388e3c',
   },
   // Modal Layout Styles
   modalBodyContainer: {
@@ -1489,5 +1545,36 @@ const styles = StyleSheet.create({
     color: '#6c757d',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  quickCoinsBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    marginBottom: 8,
+    gap: 12,
+  },
+  quickCoinsButton: {
+    minWidth: 56,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    borderWidth: 2,
+    borderColor: '#ddd',
+  },
+  quickCoinsButtonActive: {
+    backgroundColor: '#B7EFC5',
+    borderColor: '#388e3c',
+  },
+  quickCoinsText: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#222',
+    textAlign: 'center',
+  },
+  quickCoinsTextActive: {
+    color: '#388e3c',
   },
 }); 
