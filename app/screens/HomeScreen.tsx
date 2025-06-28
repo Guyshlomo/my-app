@@ -16,23 +16,21 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
-import { 
-  getCurrentUserFromSupabase, 
-  getAllUsersFromSupabase, 
-  updateUserInSupabase,
-  getAllVolunteerEvents,
-  getVolunteerEventsByAdmin,
-  getAllVolunteerRegistrations,
-  getEventRegistrations,
+import {
   completeVolunteerEvent,
-  deleteVolunteerEvent,
   deactivateVolunteerEvent,
-  getUserById
+  deleteVolunteerEvent,
+  getAllVolunteerRegistrations,
+  getCurrentUserFromSupabase,
+  getEventRegistrations,
+  getUserById,
+  getVolunteerEventsByAdmin,
+  updateUserInSupabase
 } from '../db/supabaseApi';
 import type { VolunteerEvent, VolunteerRegistration } from '../types/types';
 import { User } from '../types/types';
-import { addCoinsUpdateListener, addEventDeletedListener, addTasksCompletedListener, emitCoinsUpdate, emitEventDeleted, emitTasksCompletedUpdate, removeCoinsUpdateListener, removeEventDeletedListener, removeTasksCompletedListener } from '../utils/eventEmitter';
 import { cacheManager } from '../utils/cacheManager';
+import { addCoinsUpdateListener, addEventDeletedListener, addTasksCompletedListener, emitCoinsUpdate, emitEventDeleted, emitTasksCompletedUpdate, removeCoinsUpdateListener, removeEventDeletedListener, removeTasksCompletedListener } from '../utils/eventEmitter';
 import { navigationOptimizer } from '../utils/navigationOptimizer';
 
 // --- ערכים מותאמים לעיצוב פרופורציונלי ---
