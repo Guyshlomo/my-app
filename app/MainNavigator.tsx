@@ -33,31 +33,19 @@ function MainNavigator() {
       screenOptions={{
         headerShown: false,
         cardStyle: { backgroundColor: '#FEF6DA' },
+        cardStyleInterpolator: ({ current }) => ({
+          cardStyle: {
+            opacity: current.progress,
+          },
+        }),
         transitionSpec: {
-          open: {
-            animation: 'timing',
-            config: {
-              duration: 20, // מהיר במיוחד
-            },
-          },
-          close: {
-            animation: 'timing',
-            config: {
-              duration: 15, // מהיר במיוחד
-            },
-          },
-        },
-        cardStyleInterpolator: ({ current }) => {
-          return {
-            cardStyle: {
-              opacity: current.progress,
-            },
-          };
+          open: { animation: 'timing', config: { duration: 80 } },
+          close: { animation: 'timing', config: { duration: 80 } },
         },
         gestureEnabled: true,
         gestureResponseDistance: 100,
         gestureVelocityImpact: 0.8,
-        detachPreviousScreen: true, // משחרר מסכים קודמים מהר יותר
+        detachPreviousScreen: true,
         presentation: 'card',
       }}
     >

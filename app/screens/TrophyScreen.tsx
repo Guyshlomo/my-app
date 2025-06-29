@@ -86,13 +86,12 @@ export default function TrophyScreen() {
   const [allUsers, setAllUsers] = useState<UserWithTasks[]>([]);
   const [loading, setLoading] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [previousRank, setPreviousRank] = useState(0);
+  const previousRankRef = useRef(0);
   const [confettiKey, setConfettiKey] = useState(0);
   const confettiRef = useRef<ConfettiCannon>(null);
   const [userCoins, setUserCoins] = useState(0);
 
   const loadData = useCallback(async () => {
-    if (loading) return;
     setLoading(true);
     try {
       const [user, users] = await Promise.all([
@@ -108,12 +107,12 @@ export default function TrophyScreen() {
       if (user && !user.isAdmin) {
         setCurrentUser(user);
         const currentRank = sortedUsers.findIndex((u: UserWithTasks) => u.id === user.id) + 1;
-        if (previousRank > currentRank && previousRank !== 0 && currentRank > 0) {
+        if (previousRankRef.current > currentRank && previousRankRef.current !== 0 && currentRank > 0) {
           setShowConfetti(true);
           setTimeout(() => { confettiRef.current?.start(); }, 100);
           setTimeout(() => setShowConfetti(false), 3000);
         }
-        setPreviousRank(currentRank);
+        previousRankRef.current = currentRank;
       } else {
         setCurrentUser(null);
       }
@@ -123,7 +122,7 @@ export default function TrophyScreen() {
     } finally {
       setLoading(false);
     }
-  }, [loading, previousRank]);
+  }, []);
 
   const loadUserCoins = useCallback(async () => {
     try {
