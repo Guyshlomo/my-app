@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Image as RNImage, StyleSheet, Text, View } from 'react-native';
 
 // צבעים של שער הנגב (דוגמה, ניתן לעדכן לפי הצורך)
 const COLORS = {
@@ -39,6 +39,13 @@ const SplashScreen = () => {
       </Animated.View>
       <Text style={styles.title}>ברוכים הבאים להתנדבות בקהילה!</Text>
       <Text style={styles.subtitle}>שער הנגב - עושים טוב יחד</Text>
+      <View style={styles.bottomSection}>
+        <Text style={styles.honorText}>זה לא שלם בלעדיהם 🎗️</Text>
+        <View style={styles.honorImagesRow}>
+          <RNImage source={require('../assets/images/galizivi.png')} style={styles.honorImage} />
+          <RNImage source={require('../assets/images/omri.png')} style={styles.honorImage} />
+        </View>
+      </View>
     </View>
   );
 };
@@ -83,6 +90,37 @@ const styles = StyleSheet.create({
     textShadowColor: COLORS.orange,
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
+  },
+  bottomSection: {
+    position: 'absolute',
+    bottom: 32,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  honorText: {
+    fontSize: 18,
+    color: COLORS.white,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textShadowColor: COLORS.orange,
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  honorImagesRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  honorImage: {
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    marginHorizontal: 10,
+    borderWidth: 2,
+    borderColor: COLORS.yellow,
+    backgroundColor: COLORS.white,
   },
 });
 

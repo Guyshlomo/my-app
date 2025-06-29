@@ -13,7 +13,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (loaded) {
-      const timer = setTimeout(() => setShowSplash(false), 2200);
+      const timer = setTimeout(() => setShowSplash(false), 3200);
       return () => clearTimeout(timer);
     }
   }, [loaded]);

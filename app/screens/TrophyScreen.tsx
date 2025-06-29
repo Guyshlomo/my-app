@@ -2,14 +2,14 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Dimensions,
-    Image,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Image,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import { getAllUsersFromSupabase, getCurrentUserFromSupabase } from '../db/supabaseApi';
@@ -43,16 +43,11 @@ const UserCard = React.memo(({ user, index, isCurrentUser }: {
       style={[
         styles.userCard,
         index === 0 && styles.firstPlace,
+        index === 1 && styles.secondPlace,
+        index === 2 && styles.thirdPlace,
         isCurrentUser && styles.currentUser,
       ]}
     >
-      <View style={styles.rankContainer}>
-        {index === 0 && <Text style={styles.rankCrown}>👑</Text>}
-        <Text style={[styles.rankNumber, index === 0 && styles.firstPlaceText]}>
-          {index + 1}
-        </Text>
-      </View>
-
       <View style={styles.userInfo}>
         {user.profileImage ? (
           <Image source={{ uri: user.profileImage }} style={styles.profileImage} />
@@ -62,9 +57,22 @@ const UserCard = React.memo(({ user, index, isCurrentUser }: {
           </View>
         )}
         <View style={styles.userDetails}>
-          <Text style={styles.userName}>{`${user.firstName} ${user.lastName}`}</Text>
-          <Text style={styles.userStats}>{`${user.tasksCompleted || 0} התנדבויות`}</Text>
+          <Text style={[styles.userName, { flex: 1, textAlign: 'right' }]}>{`${user.firstName} ${user.lastName}`}</Text>
+          <Text style={[styles.userStats, { flex: 1, textAlign: 'right' }]}>{`${user.tasksCompleted || 0} התנדבויות`}</Text>
         </View>
+      </View>
+      <View style={styles.rankContainer}>
+        {index === 0 && <Text style={styles.rankCrown}>👑</Text>}
+        {index === 1 && <Text style={styles.rankCrown}>🥈</Text>}
+        {index === 2 && <Text style={styles.rankCrown}>🥉</Text>}
+        <Text style={[
+          styles.rankNumber,
+          index === 0 && styles.firstPlaceText,
+          index === 1 && styles.secondPlaceText,
+          index === 2 && styles.thirdPlaceText,
+        ]}>
+          {index + 1}
+        </Text>
       </View>
     </TouchableOpacity>
   </View>
@@ -82,41 +90,32 @@ export default function TrophyScreen() {
   const [userCoins, setUserCoins] = useState(0);
 
   const loadData = useCallback(async () => {
-    if (loading) return; // מניעת טעינה כפולה
-    
+    if (loading) return;
     setLoading(true);
     try {
-      // Use cached data from API for much faster loading
       const [user, users] = await Promise.all([
         getCurrentUserFromSupabase(),
         getAllUsersFromSupabase()
       ]);
-      
-      if (!users || users.length === 0) {
-        console.log('📊 No users found');
-        return;
-      }
-      
-      const sortedUsers = users.sort((a: UserWithTasks, b: UserWithTasks) => (b.tasksCompleted || 0) - (a.tasksCompleted || 0));
-      
-      if (user) {
+      if (!users || users.length === 0) return;
+      // Filter out admin users
+      const filteredUsers = users.filter(
+        (u: UserWithTasks) => !u.isAdmin
+      );
+      const sortedUsers = filteredUsers.sort((a: UserWithTasks, b: UserWithTasks) => (b.tasksCompleted || 0) - (a.tasksCompleted || 0));
+      if (user && !user.isAdmin) {
         setCurrentUser(user);
         const currentRank = sortedUsers.findIndex((u: UserWithTasks) => u.id === user.id) + 1;
-        
-        // בדיקה אם המשתמש עלה בדירוג (רק אם יש שינוי אמיתי)
         if (previousRank > currentRank && previousRank !== 0 && currentRank > 0) {
           setShowConfetti(true);
-          // הפעלת קונפטי רק כשצריך
-          setTimeout(() => {
-            confettiRef.current?.start();
-          }, 100);
+          setTimeout(() => { confettiRef.current?.start(); }, 100);
           setTimeout(() => setShowConfetti(false), 3000);
         }
         setPreviousRank(currentRank);
+      } else {
+        setCurrentUser(null);
       }
-      
       setAllUsers(sortedUsers);
-      console.log('✅ נתוני Trophy נטענו מהcache:', { usersCount: sortedUsers.length });
     } catch (error) {
       console.error('❌ Error loading trophy data:', error);
     } finally {
@@ -127,45 +126,37 @@ export default function TrophyScreen() {
   const loadUserCoins = useCallback(async () => {
     try {
       const user = await getCurrentUserFromSupabase();
-      if (user) {
-        setUserCoins(user.coins);
-      }
+      if (user) setUserCoins(user.coins);
     } catch (error) {
       console.error('Error loading user coins:', error);
     }
   }, []);
 
+  // Set up listeners ONCE
   useEffect(() => {
-    loadData();
-    loadUserCoins();
-    
-    // הוספת מאזין לשינויים במטבעות
-    const coinsUpdateHandler = (newCoins: number) => {
-      setUserCoins(newCoins);
-    };
-
-    // הוספת מאזין לעדכון התנדבויות
+    const coinsUpdateHandler = (newCoins: number) => setUserCoins(newCoins);
     const tasksCompletedHandler = (userId: string, tasksCompleted: number) => {
-      console.log('📊 [TrophyScreen] Received tasksCompleted update:', { userId, tasksCompleted });
-      // Reload all user data to get updated rankings
-      loadData();
+      // Only reload if the current user or leaderboard is affected
+      if (!currentUser || userId === currentUser.id) {
+        loadData();
+      }
     };
-
     addCoinsUpdateListener(coinsUpdateHandler);
     addTasksCompletedListener(tasksCompletedHandler);
-
-    // ניקוי המאזין כשהקומפוננטה מתפרקת
     return () => {
       removeCoinsUpdateListener(coinsUpdateHandler);
       removeTasksCompletedListener(tasksCompletedHandler);
     };
-  }, [loadData, loadUserCoins]);
+    // DO NOT add currentUser or loadData to deps to avoid loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // רענון נתונים כשחוזרים למסך
+  // Only load data when screen is focused
   useFocusEffect(
     React.useCallback(() => {
       loadData();
-    }, [loadData])
+      loadUserCoins();
+    }, [loadData, loadUserCoins])
   );
 
   const getUserRank = useMemo(() => {
@@ -435,6 +426,16 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#FFD700',
   },
+  secondPlace: {
+    backgroundColor: '#C0C0C0', // Silver
+    borderWidth: 2,
+    borderColor: '#C0C0C0',
+  },
+  thirdPlace: {
+    backgroundColor: '#e6a86c', // Bright Bronze
+    borderWidth: 2,
+    borderColor: '#e6a86c',
+  },
   currentUser: {
     borderWidth: 2,
     borderColor: '#4CAF50',
@@ -446,7 +447,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginLeft: 12,
     position: 'relative',
   },
   rankCrown: {
@@ -463,6 +464,12 @@ const styles = StyleSheet.create({
   },
   firstPlaceText: {
     color: '#B8860B',
+  },
+  secondPlaceText: {
+    color: '#888',
+  },
+  thirdPlaceText: {
+    color: '#fff',
   },
   userInfo: {
     flex: 1,
