@@ -1,6 +1,5 @@
-import * as ImagePicker from 'expo-image-picker';
 import React, { useState } from 'react';
-import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { signupWithSupabase } from '../db/supabaseApi';
 
@@ -26,28 +25,20 @@ export default function SignupScreen({ navigation }: any) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [settlement, setSettlement] = useState('');
-  const [profileImage, setProfileImage] = useState('');
+  const [avatarSeed, setAvatarSeed] = useState<string | null>(null);
+  const avatarStyle = 'adventurer';
+  const avatarSeeds = [
+    null, // אופציית ברירת מחדל - עיגול ריק עם סימן שאלה
+    // גברים
+    'lion', 'cat', 'dog', 'panda', 'fox', 'koala', 'bear', 'tiger',
+    // נשים
+    'alice', 'lucy', 'emma', 'olivia', 'mia', 'zoe', 'sophia', 'ava',
+    // דמויות חמודות/ניטרליות
+    'bunny', 'monkey', 'robot', 'owl', 'penguin', 'unicorn', 'sloth', 'giraffe'
+  ];
   const [isDatePickerVisible, setDatePickerVisible] = useState(false);
   const [isSettlementModalVisible, setSettlementModalVisible] = useState(false);
-
-  const pickImage = async () => {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('הרשאה נדרשת', 'אנא אשר גישה לגלריה כדי לבחור תמונת פרופיל');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 1,
-    });
-
-    if (!result.canceled) {
-      setProfileImage(result.assets[0].uri);
-    }
-  };
+  const [avatarModalVisible, setAvatarModalVisible] = useState(false);
 
   const handleConfirmDate = (date: Date) => {
     setBirthDate(date);
@@ -75,8 +66,8 @@ export default function SignupScreen({ navigation }: any) {
       return;
     }
 
-    if (!profileImage) {
-      Alert.alert('שגיאה', 'נא לבחור תמונת פרופיל');
+    if (!avatarSeed) {
+      Alert.alert('שגיאה', 'נא לבחור אווטר');
       return;
     }
 
@@ -87,7 +78,8 @@ export default function SignupScreen({ navigation }: any) {
         password,
         firstName,
         lastName,
-        profileImage,
+        avatarSeed,
+        avatarStyle,
         settlement,
         birthDate,
       });
@@ -113,126 +105,166 @@ export default function SignupScreen({ navigation }: any) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
-          {profileImage ? (
-            <Image source={{ uri: profileImage }} style={styles.profileImage} />
-          ) : (
-            <Image source={require('../../assets/images/upload.png')} style={styles.profileImage} />
-          )}
-          <Text style={styles.imagePickerText}>העלה תמונת פרופיל</Text>
-        </TouchableOpacity>
-      <TextInput
-        style={[styles.input, firstName ? styles.inputFilled : null]}
-        placeholder="שם פרטי"
-        value={firstName}
-        onChangeText={setFirstName}
-        placeholderTextColor="#888"
-      />
-      <TextInput
-        style={[styles.input, lastName ? styles.inputFilled : null]}
-        placeholder="שם משפחה"
-        value={lastName}
-        onChangeText={setLastName}
-        placeholderTextColor="#888"
-      />
-      <TouchableOpacity
-        style={[styles.input, settlement ? styles.inputFilled : null]}
-        onPress={() => setSettlementModalVisible(true)}
-      >
-        <View style={styles.settlementPickerContent}>
-          <Text style={styles.settlementText}>
-            {settlement || 'בחר ישוב'}
-          </Text>
-          <Text style={styles.dropdownIcon}>▼</Text>
+        <View style={styles.imagePicker}>
+          <TouchableOpacity
+            style={[styles.profileImage, { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#B7EFC5', backgroundColor: '#f5f5f5' }]}
+            onPress={() => setAvatarModalVisible(true)}
+          >
+            {avatarSeed ? (
+              <Image
+                source={{ uri: `https://api.dicebear.com/7.x/${avatarStyle}/png?seed=${avatarSeed}` }}
+                style={[styles.profileImage, { borderWidth: 0 }]}
+              />
+            ) : (
+              <Text style={{ fontSize: 32, color: '#888' }}>?</Text>
+            )}
+          </TouchableOpacity>
+          <Text style={styles.avatarLabel}>בחר אווטר</Text>
+          <Modal
+            visible={avatarModalVisible}
+            animationType="slide"
+            transparent
+            onRequestClose={() => setAvatarModalVisible(false)}
+          >
+            <Pressable style={styles.avatarModalOverlay} onPress={() => setAvatarModalVisible(false)}>
+              <View style={styles.avatarModalContent}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>בחר אווטר</Text>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingVertical: 8 }}>
+                  {avatarSeeds.map((seed, idx) => (
+                    <TouchableOpacity key={seed ?? 'empty'} onPress={() => { setAvatarSeed(seed); setAvatarModalVisible(false); }}>
+                      {seed ? (
+                        <Image
+                          source={{ uri: `https://api.dicebear.com/7.x/${avatarStyle}/png?seed=${seed}` }}
+                          style={[
+                            styles.avatarScrollImage,
+                            { margin: 8, width: 60, height: 60 },
+                            avatarSeed === seed && { borderWidth: 3, borderColor: '#B7EFC5' }
+                          ]}
+                        />
+                      ) : (
+                        <View style={[styles.avatarScrollImage, { margin: 8, width: 60, height: 60, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f5', borderWidth: avatarSeed === null ? 3 : 0, borderColor: '#888' }] }>
+                          <Text style={{ fontSize: 32, color: '#888' }}>?</Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </Pressable>
+          </Modal>
         </View>
-      </TouchableOpacity>
-      <TextInput
-        style={[styles.input, email ? styles.inputFilled : null]}
-        placeholder="אימייל"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        placeholderTextColor="#888"
-      />
-      <TextInput
-        style={[styles.input, password ? styles.inputFilled : null]}
-        placeholder="סיסמה"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        placeholderTextColor="#888"
-      />
-      <TextInput
-        style={[styles.input, confirmPassword ? styles.inputFilled : null]}
-        placeholder="אימות סיסמה"
-        value={confirmPassword}
-        onChangeText={setConfirmPassword}
-        secureTextEntry
-        placeholderTextColor="#888"
-      />
-      <TouchableOpacity
-        style={[styles.datePickerButton, birthDate ? styles.inputFilled : null]}
-        onPress={() => setDatePickerVisible(true)}
-      >
-        <View style={styles.iconContainer}>
-          <Text style={styles.calendarIcon}>📅</Text>
-        </View>
-        <View style={styles.textContainer}>
-          <Text style={[styles.datePickerText, !birthDate && styles.placeholderText]}>
-            {birthDate ? birthDate.toLocaleDateString('he-IL') : 'תאריך לידה'}
-          </Text>
-        </View>
-      </TouchableOpacity>
-
-      <DateTimePickerModal
-        isVisible={isDatePickerVisible}
-        mode="date"
-        onConfirm={handleConfirmDate}
-        onCancel={handleCancelDate}
-        maximumDate={new Date()}
-        display="spinner"
-      />
-
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={isSettlementModalVisible}
-        onRequestClose={() => setSettlementModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>בחר ישוב</Text>
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={() => setSettlementModalVisible(false)}
-              >
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.settlementList}>
-              {SETTLEMENTS.map((item) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[
-                    styles.settlementItem,
-                    settlement === item && styles.selectedSettlement
-                  ]}
-                  onPress={() => handleSettlementSelect(item)}
-                >
-                  <Text style={[
-                    styles.settlementItemText,
-                    settlement === item && styles.selectedSettlementText
-                  ]}>
-                    {item}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+        <TextInput
+          style={[styles.input, firstName ? styles.inputFilled : null]}
+          placeholder="שם פרטי"
+          value={firstName}
+          onChangeText={setFirstName}
+          placeholderTextColor="#888"
+        />
+        <TextInput
+          style={[styles.input, lastName ? styles.inputFilled : null]}
+          placeholder="שם משפחה"
+          value={lastName}
+          onChangeText={setLastName}
+          placeholderTextColor="#888"
+        />
+        <TouchableOpacity
+          style={[styles.input, settlement ? styles.inputFilled : null]}
+          onPress={() => setSettlementModalVisible(true)}
+        >
+          <View style={styles.settlementPickerContent}>
+            <Text style={styles.settlementText}>
+              {settlement || 'בחר ישוב'}
+            </Text>
+            <Text style={styles.dropdownIcon}>▼</Text>
           </View>
-        </View>
-      </Modal>
+        </TouchableOpacity>
+        <TextInput
+          style={[styles.input, email ? styles.inputFilled : null]}
+          placeholder="אימייל"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholderTextColor="#888"
+        />
+        <TextInput
+          style={[styles.input, password ? styles.inputFilled : null]}
+          placeholder="סיסמה"
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+          placeholderTextColor="#888"
+        />
+        <TextInput
+          style={[styles.input, confirmPassword ? styles.inputFilled : null]}
+          placeholder="אימות סיסמה"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry
+          placeholderTextColor="#888"
+        />
+        <TouchableOpacity
+          style={[styles.datePickerButton, birthDate ? styles.inputFilled : null]}
+          onPress={() => setDatePickerVisible(true)}
+        >
+          <View style={styles.iconContainer}>
+            <Text style={styles.calendarIcon}>📅</Text>
+          </View>
+          <View style={styles.textContainer}>
+            <Text style={[styles.datePickerText, !birthDate && styles.placeholderText]}>
+              {birthDate ? birthDate.toLocaleDateString('he-IL') : 'תאריך לידה'}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <DateTimePickerModal
+          isVisible={isDatePickerVisible}
+          mode="date"
+          onConfirm={handleConfirmDate}
+          onCancel={handleCancelDate}
+          maximumDate={new Date()}
+          display="spinner"
+        />
+
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={isSettlementModalVisible}
+          onRequestClose={() => setSettlementModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>בחר ישוב</Text>
+                <TouchableOpacity 
+                  style={styles.closeButton}
+                  onPress={() => setSettlementModalVisible(false)}
+                >
+                  <Text style={styles.closeButtonText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView style={styles.settlementList}>
+                {SETTLEMENTS.map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={[
+                      styles.settlementItem,
+                      settlement === item && styles.selectedSettlement
+                    ]}
+                    onPress={() => handleSettlementSelect(item)}
+                  >
+                    <Text style={[
+                      styles.settlementItemText,
+                      settlement === item && styles.selectedSettlementText
+                    ]}>
+                      {item}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
 
         <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
           <Text style={styles.signupText}>הרשמה</Text>
@@ -281,9 +313,12 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     backgroundColor: '#f5f5f5',
   },
-  imagePickerText: {
-    color: '#666',
-    fontSize: 12,
+  avatarLabel: {
+    marginTop: 8,
+    fontWeight: 'bold',
+    fontSize: 16,
+    color: '#222',
+    textAlign: 'center',
   },
   input: {
     backgroundColor: '#f5f5f5',
@@ -407,5 +442,32 @@ const styles = StyleSheet.create({
     color: '#222',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  avatarModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 20,
+    width: '90%',
+    height: '50%',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+    justifyContent: 'center',
+  },
+  avatarScrollImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    marginHorizontal: 5,
+    backgroundColor: '#f5f5f5',
   },
 });

@@ -51,9 +51,11 @@ const UserCard = React.memo(({ user, index, isCurrentUser }: {
       <View style={styles.userInfo}>
         {user.profileImage ? (
           <Image source={{ uri: user.profileImage }} style={styles.profileImage} />
+        ) : user.avatar_seed && user.avatar_style ? (
+          <Image source={{ uri: `https://api.dicebear.com/7.x/${user.avatar_style}/png?seed=${user.avatar_seed}` }} style={styles.profileImage} />
         ) : (
           <View style={styles.defaultAvatar}>
-            <Text style={styles.avatarText}>{user.firstName?.[0] || '?'}</Text>
+            <Text style={styles.avatarText}>?</Text>
           </View>
         )}
         <View style={styles.userDetails}>
@@ -197,11 +199,15 @@ export default function TrophyScreen() {
               style={styles.headerProfileImage}
               defaultSource={require('../../assets/images/icon.png')}
             />
+          ) : currentUser?.avatar_seed && currentUser?.avatar_style ? (
+            <Image
+              source={{ uri: `https://api.dicebear.com/7.x/${currentUser.avatar_style}/png?seed=${currentUser.avatar_seed}` }}
+              style={styles.headerProfileImage}
+              defaultSource={require('../../assets/images/icon.png')}
+            />
           ) : (
             <View style={styles.headerDefaultAvatar}>
-              <Text style={styles.headerAvatarText}>
-                {currentUser?.firstName?.[0] || '?'}
-              </Text>
+              <Text style={styles.headerAvatarText}>{currentUser?.firstName?.[0] || '?'}</Text>
             </View>
           )}
           <Text style={styles.rankText}>

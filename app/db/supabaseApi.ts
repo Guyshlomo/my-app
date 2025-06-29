@@ -10,6 +10,8 @@ export async function signupWithSupabase({
   firstName,
   lastName,
   profileImage,
+  avatarSeed,
+  avatarStyle,
   settlement,
   birthDate
 }: {
@@ -18,6 +20,8 @@ export async function signupWithSupabase({
   firstName: string;
   lastName: string;
   profileImage?: string;
+  avatarSeed?: string;
+  avatarStyle?: string;
   settlement?: string;
   birthDate?: Date;
 }) {
@@ -54,6 +58,8 @@ export async function signupWithSupabase({
           taskcompleted: 0,
           isadmin: false,
           profileimage: profileImage,
+          avatar_seed: avatarSeed,
+          avatar_style: avatarStyle,
           settlement: settlement,
           birthdate: birthDate?.toISOString(),
         }
@@ -152,6 +158,8 @@ export async function getCurrentUserFromSupabase(): Promise<User | null> {
       profileImage: profile.profileimage,
       settlement: profile.settlement,
       birthDate: profile.birthdate,
+      avatar_seed: profile.avatar_seed,
+      avatar_style: profile.avatar_style,
     };
 
     console.log('🔄 [Supabase] Converted user:', {
@@ -270,6 +278,8 @@ export async function getAllUsersFromSupabase(): Promise<User[]> {
       profileImage: profile.profileimage,
       settlement: profile.settlement,
       birthDate: profile.birthdate,
+      avatar_seed: profile.avatar_seed,
+      avatar_style: profile.avatar_style,
     }));
 
     return users;

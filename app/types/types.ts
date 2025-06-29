@@ -11,6 +11,8 @@ export interface User {
   taskscompleted?: number; // Database field name
   completedVolunteering?: string[];
   isAdmin: boolean;
+  avatar_seed?: string;
+  avatar_style?: string;
 }
 
 export interface VolunteerActivity {

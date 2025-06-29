@@ -1530,10 +1530,21 @@ export default function HomeScreen() {
                 {`שלום, ${(currentUser?.firstName || '') + (currentUser?.lastName ? ' ' + currentUser.lastName : '') || 'משתמש'}`}
               </Text>
             </View>
-            <Image
-              source={{ uri: currentUser?.profileImage || 'https://via.placeholder.com/50' }}
-              style={styles.profileImage}
-            />
+            {currentUser?.profileImage ? (
+              <Image
+                source={{ uri: currentUser.profileImage }}
+                style={styles.profileImage}
+              />
+            ) : currentUser?.avatar_seed && currentUser?.avatar_style ? (
+              <Image
+                source={{ uri: `https://api.dicebear.com/7.x/${currentUser.avatar_style}/png?seed=${currentUser.avatar_seed}` }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <View style={[styles.profileImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f5', borderColor: '#888', borderWidth: 2 }] }>
+                <Text style={{ fontSize: 28, color: '#888' }}>?</Text>
+              </View>
+            )}
           </View>
           
           <View style={styles.statsSection}>
