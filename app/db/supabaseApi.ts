@@ -197,6 +197,30 @@ export async function logoutFromSupabase() {
   }
 }
 
+// Delete user account
+export async function deleteUserAccount(userId: string) {
+  try {
+    console.log('🗑️ [Supabase] Deleting user account:', userId);
+    
+    // Delete user profile from users table
+    const { error: profileError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', userId);
+
+    if (profileError) {
+      console.error('❌ [Supabase] Profile deletion error:', profileError);
+      throw profileError;
+    }
+
+    console.log('✅ [Supabase] User account deleted successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ [Supabase] Delete user account failed:', error);
+    throw error;
+  }
+}
+
 // ===== USER MANAGEMENT FUNCTIONS =====
 
 // Update user data

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, Animated, Easing, Image, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { loginWithSupabase } from '../db/supabaseApi';
+import { getResponsiveDimensions, getResponsiveFontSize, getResponsiveMargin, getResponsivePadding } from '../utils/screenUtils';
 
 
 const COLORS = {
@@ -73,6 +74,14 @@ export default function LoginScreen({ navigation }: any) {
     });
   };
 
+  const openContactLink = () => {
+    const url = 'https://www.sng.org.il/%D7%9E%D7%A8%D7%9B%D7%96-%D7%94%D7%A6%D7%A2%D7%99%D7%A8%D7%99%D7%9D/';
+    Linking.openURL(url).catch(err => {
+      console.error('Failed to open contact URL:', err);
+      Alert.alert('שגיאה', 'לא ניתן לפתוח את עמוד יצירת הקשר');
+    });
+  };
+
   React.useEffect(() => {
     const totalWidth = images.length * 100; // 80px image + 20px margin
     Animated.loop(
@@ -132,12 +141,14 @@ export default function LoginScreen({ navigation }: any) {
         </Animated.View>
       </View>
 
-      {/* קישור למדיניות פרטיות בתחתית המסך */}
+      {/* קישורים בתחתית המסך */}
       <View style={styles.privacyContainer}>
         <TouchableOpacity onPress={openPrivacyPolicy}>
-          <Text style={styles.privacyLink}>
-            מדיניות פרטיות
-          </Text>
+          <Text style={styles.privacyLink}>מדיניות פרטיות</Text>
+        </TouchableOpacity>
+        <Text style={{ marginHorizontal: 8 }}>|</Text>
+        <TouchableOpacity onPress={openContactLink}>
+          <Text style={styles.privacyLink}>יצירת קשר</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -148,18 +159,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
-    paddingHorizontal: 16,
-    paddingTop: 80, // העליתי מ-60 ל-80
+    paddingHorizontal: getResponsivePadding().horizontal, // 16 on iPhone, more on iPad
+    paddingTop: 80,
   },
   input: {
     backgroundColor: '#f5f5f5',
     width: '100%',
+    maxWidth: getResponsiveDimensions().containerWidth, // Max width on iPad, full width on iPhone
     borderRadius: 24,
-    paddingVertical: 16,
+    paddingVertical: getResponsiveMargin(16), // 16 on iPhone, 24 on iPad
     paddingHorizontal: 24,
     marginBottom: 16,
-    fontSize: 16,
+    fontSize: getResponsiveFontSize(16), // 16 on iPhone, 19.2 on iPad
     textAlign: 'right',
+    alignSelf: 'center', // Center on iPad
   },
   inputFilled: {
     backgroundColor: '#e8e8e8',
@@ -167,42 +180,45 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: COLORS.blue,
     borderRadius: 24,
-    paddingVertical: 16,
+    paddingVertical: getResponsiveMargin(16),
     paddingHorizontal: 32,
     width: '100%',
+    maxWidth: getResponsiveDimensions().containerWidth,
     alignItems: 'center',
+    alignSelf: 'center',
     marginBottom: 16,
   },
   loginText: {
-    color: '#222', // טקסט כהה
-    fontSize: 16,
+    color: '#222',
+    fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
   },
   signupButton: {
     backgroundColor: COLORS.green,
     borderRadius: 24,
-    paddingVertical: 16,
+    paddingVertical: getResponsiveMargin(16),
     paddingHorizontal: 32,
     width: '100%',
+    maxWidth: getResponsiveDimensions().containerWidth,
     alignItems: 'center',
+    alignSelf: 'center',
     marginBottom: 16,
   },
   signupText: {
-    color: '#222', // טקסט כהה
-    fontSize: 16,
+    color: '#222',
+    fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
   },
-
   voluntreeHeader: {
     width: '100%',
     alignItems: 'center',
-    marginTop: 32, // העליתי מ-24 ל-32
+    marginTop: getResponsiveMargin(32),
     marginBottom: 0,
   },
   voluntreeTitle: {
-    fontSize: 38,
+    fontSize: getResponsiveFontSize(38), // 38 on iPhone, 45.6 on iPad
     fontWeight: 'bold',
-    color: '#222', // טקסט כהה
+    color: '#222',
     fontFamily: 'SpaceMono',
     letterSpacing: 2,
     textShadowColor: '#B7EFC5',
@@ -213,10 +229,10 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     height: 80,
-    marginBottom: 24,
+    marginBottom: getResponsiveMargin(24),
     overflow: 'hidden',
     width: '100%',
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', // רקע לבן שקוף קלות
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
   },
   logoRow: {
     flexDirection: 'row',
@@ -229,19 +245,22 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   privacyContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 0,
-    marginBottom: 24,
+    justifyContent: 'center',
+    marginBottom: getResponsiveMargin(24),
+    marginLeft: 0,
+    marginRight: 0,
   },
   privacyTitle: {
-    fontSize: 16,
+    fontSize: getResponsiveFontSize(16),
     fontWeight: 'bold',
     color: '#222',
     marginBottom: 8,
     textAlign: 'center',
   },
   privacyLink: {
-    fontSize: 14,
+    fontSize: getResponsiveFontSize(14),
     color: '#007bff',
     textAlign: 'center',
     textDecorationLine: 'underline',

@@ -19,9 +19,6 @@
     "production": {
       "ios": {
         "autoIncrement": "buildNumber"
-      },
-      "android": {
-        "autoIncrement": "versionCode"
       }
     }
   },

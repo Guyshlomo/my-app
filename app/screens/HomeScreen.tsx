@@ -31,6 +31,7 @@ import type { VolunteerEvent, VolunteerRegistration } from '../types/types';
 import { User } from '../types/types';
 import { addCoinsUpdateListener, addEventDeletedListener, addTasksCompletedListener, emitCoinsUpdate, emitEventDeleted, emitTasksCompletedUpdate, removeCoinsUpdateListener, removeEventDeletedListener, removeTasksCompletedListener } from '../utils/eventEmitter';
 import { volunteerEventsManager } from '../utils/volunteerEvents';
+import SettingsScreen from './SettingsScreen';
 
 // --- ערכים מותאמים לעיצוב פרופורציונלי ---
 const STAGE_SIZE = 66;
@@ -106,6 +107,9 @@ export default function HomeScreen() {
   const [messageQueue, setMessageQueue] = useState<string[]>([]);
   const [forceUpdateKey, setForceUpdateKey] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Settings state
+  const [showSettings, setShowSettings] = useState(false);
 
   // Admin specific state
   const [adminEvents, setAdminEvents] = useState<VolunteerEvent[]>([]);
@@ -1217,8 +1221,16 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={styles.adminContainer}>
         <View style={styles.adminHeader}>
-          <Text style={styles.adminHeaderTitle}>פאנל ניהול אדמין</Text>
-          <Text style={styles.adminHeaderSubtitle}>שלום, {currentUser.firstName}</Text>
+          <TouchableOpacity 
+            style={styles.adminSettingsButton}
+            onPress={() => setShowSettings(true)}
+          >
+            <Text style={styles.adminSettingsIcon}>⚙️</Text>
+          </TouchableOpacity>
+          <View style={styles.adminHeaderContent}>
+            <Text style={styles.adminHeaderTitle}>פאנל ניהול אדמין</Text>
+            <Text style={styles.adminHeaderSubtitle}>שלום, {currentUser.firstName}</Text>
+          </View>
         </View>
 
         <View style={styles.adminStatsContainer}>
@@ -1515,6 +1527,12 @@ export default function HomeScreen() {
             </View>
           </View>
         )}
+
+        {/* מסך הגדרות לאדמין */}
+        <SettingsScreen 
+          visible={showSettings} 
+          onClose={() => setShowSettings(false)} 
+        />
       </SafeAreaView>
     );
   }
@@ -1525,6 +1543,12 @@ export default function HomeScreen() {
       <View style={styles.topBanner}>
         <View style={styles.topBannerContent}>
           <View style={styles.userSection}>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={() => setShowSettings(true)}
+            >
+              <Text style={styles.settingsIcon}>⚙️</Text>
+            </TouchableOpacity>
             <View style={styles.userInfo}>
               <Text style={styles.userName}>
                 {`שלום, ${(currentUser?.firstName || '') + (currentUser?.lastName ? ' ' + currentUser.lastName : '') || 'משתמש'}`}
@@ -2099,6 +2123,12 @@ export default function HomeScreen() {
         <Text style={styles.messageText}>{avatarMessage}</Text>
       </View>
     )}
+
+    {/* מסך הגדרות */}
+    <SettingsScreen 
+      visible={showSettings} 
+      onClose={() => setShowSettings(false)} 
+    />
   </View>
 );
 }
@@ -2378,6 +2408,32 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  adminSettingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  adminSettingsIcon: {
+    fontSize: 20,
+    color: '#4CAF50',
+  },
+  adminHeaderContent: {
+    flex: 1,
     alignItems: 'center',
   },
   adminHeaderTitle: {
@@ -3022,6 +3078,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 15,
     width: '100%',
+  },
+  settingsButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 15,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  settingsIcon: {
+    fontSize: 20,
+    color: '#8B4513',
   },
   profileImage: {
     width: 50,
