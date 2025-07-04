@@ -14,19 +14,20 @@ import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
 import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    Modal,
-    RefreshControl,
-    SafeAreaView,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    Vibration,
-    View
+  Animated,
+  Dimensions,
+  Easing,
+  Image,
+  Modal,
+  Platform,
+  RefreshControl,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  Vibration,
+  View
 } from 'react-native';
 import ConfettiCannon from 'react-native-confetti-cannon';
 import QRCode from 'react-native-qrcode-svg';
@@ -72,13 +73,15 @@ function CouponCard({
   fadeAnim, 
   onPress,
   onCoinPress,
-  isSelected 
+  isSelected,
+  responsiveFontSize 
 }: { 
   coupon: CouponData; 
   fadeAnim: Animated.Value; 
   onPress: () => void;
   onCoinPress: () => void;
   isSelected: boolean;
+  responsiveFontSize: (size: number) => number;
 }) {
   const [isPressed, setIsPressed] = useState(false);
 
@@ -103,9 +106,9 @@ function CouponCard({
       >
         <View style={styles.couponContent}>
           <View style={styles.sparkleContainer}>
-            <Text style={styles.businessName}>{coupon.title}</Text>
+            <Text style={[styles.businessName, { fontSize: responsiveFontSize(16) }]}>{coupon.title}</Text>
           </View>
-          <Text style={styles.description}>{coupon.desc}</Text>
+          <Text style={[styles.description, { fontSize: responsiveFontSize(14) }]}>{coupon.desc}</Text>
           <TouchableOpacity 
             style={styles.coinButton}
             onPress={onCoinPress}
@@ -115,7 +118,7 @@ function CouponCard({
               style={styles.coinIcon}
               resizeMode="contain"
             />
-            <Text style={styles.coinText}>{coupon.coins}</Text>
+            <Text style={[styles.coinText, { fontSize: responsiveFontSize(14) }]}>{coupon.coins}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -179,6 +182,11 @@ function GiftScreen() {
   const [coupons, setCoupons] = useState<CouponData[]>([]);
   const [purchasedCoupons, setPurchasedCoupons] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
 
   // טעינת נתוני המשתמש
   useEffect(() => {
@@ -400,7 +408,7 @@ function GiftScreen() {
                 style={styles.coinIcon}
                 resizeMode="contain"
               />
-              <Text style={styles.coinsText}>
+              <Text style={[styles.coinsText, { fontSize: responsiveFontSize(20) }]}>
                 יש לך {userCoins} מטבעות
               </Text>
             </View>
@@ -432,6 +440,7 @@ function GiftScreen() {
 
           {/* כותרת מדוברת */}
           <View style={styles.header}>
+            <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(24) }]}>מתנות</Text>
           </View>
           <Text style={styles.headerSubtitleBig}>יאללה, בא לך משהו טעים?</Text>
 
@@ -477,6 +486,7 @@ function GiftScreen() {
                 onPress={() => handleCouponPress(coupon, idx)}
                 onCoinPress={() => handleCouponPress(coupon, idx)}
                 isSelected={selectedCoupon === idx} 
+                responsiveFontSize={responsiveFontSize} 
               />
             ))}
             
@@ -773,7 +783,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
   },
-  headerTitleBig: { 
+  headerTitle: { 
     fontSize: 18, 
     color: '#4A5568', 
     textAlign: 'center', 

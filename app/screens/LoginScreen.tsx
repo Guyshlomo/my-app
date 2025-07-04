@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Alert, Animated, Easing, Image, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Easing, Image, Linking, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { loginWithSupabase } from '../db/supabaseApi';
-import { getResponsiveDimensions, getResponsiveFontSize, getResponsiveMargin, getResponsivePadding } from '../utils/screenUtils';
 
 
 const COLORS = {
@@ -29,6 +28,13 @@ export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const scrollX = React.useRef(new Animated.Value(0)).current;
+
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
+  const responsivePadding = (basePadding: number) => isIPad ? basePadding * 1.5 : basePadding;
+  const responsiveMaxWidth = () => isIPad ? Math.min(screenWidth * 0.7, 600) : screenWidth;
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -95,9 +101,9 @@ export default function LoginScreen({ navigation }: any) {
   }, []);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isIPad && { paddingHorizontal: responsivePadding(16), alignItems: 'center' }]}>
       <View style={styles.voluntreeHeader}>
-        <Text style={styles.voluntreeTitle}>Voluntree</Text>
+        <Text style={[styles.voluntreeTitle, { fontSize: responsiveFontSize(38) }]}>Voluntree</Text>
       </View>
       <View style={{ alignItems: 'center', marginBottom: 20, marginTop: 24 }}>
         <Image source={require('../../assets/images/shaarhanegev.png')} style={{ width: 80, height: 80, resizeMode: 'contain' }} />
@@ -105,7 +111,15 @@ export default function LoginScreen({ navigation }: any) {
       <View style={{ flex: 1, justifyContent: 'flex-start', alignItems: 'center' }}>
         <View style={{ width: '100%', alignItems: 'center', marginTop: 0 }}>
           <TextInput
-            style={[styles.input, email ? styles.inputFilled : null]}
+            style={[
+              styles.input, 
+              email ? styles.inputFilled : null,
+              { 
+                fontSize: responsiveFontSize(16),
+                paddingVertical: responsivePadding(16),
+                maxWidth: responsiveMaxWidth(),
+              }
+            ]}
             placeholder="אימייל"
             value={email}
             onChangeText={setEmail}
@@ -114,18 +128,32 @@ export default function LoginScreen({ navigation }: any) {
             placeholderTextColor="#888"
           />
           <TextInput
-            style={[styles.input, password ? styles.inputFilled : null]}
+            style={[
+              styles.input, 
+              password ? styles.inputFilled : null,
+              { 
+                fontSize: responsiveFontSize(16),
+                paddingVertical: responsivePadding(16),
+                maxWidth: responsiveMaxWidth(),
+              }
+            ]}
             placeholder="סיסמה"
             value={password}
             onChangeText={setPassword}
             secureTextEntry
             placeholderTextColor="#888"
           />
-          <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
-            <Text style={styles.loginText}>התחברות לחשבון</Text>
+          <TouchableOpacity style={[styles.loginButton, { 
+            paddingVertical: responsivePadding(16),
+            maxWidth: responsiveMaxWidth(),
+          }]} onPress={handleLogin}>
+            <Text style={[styles.loginText, { fontSize: responsiveFontSize(16) }]}>התחברות לחשבון</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.signupButton} onPress={() => navigation.navigate('Signup')}>
-            <Text style={styles.signupText}>יצירת חשבון חדש</Text>
+          <TouchableOpacity style={[styles.signupButton, { 
+            paddingVertical: responsivePadding(16),
+            maxWidth: responsiveMaxWidth(),
+          }]} onPress={() => navigation.navigate('Signup')}>
+            <Text style={[styles.signupText, { fontSize: responsiveFontSize(16) }]}>יצירת חשבון חדש</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -144,11 +172,11 @@ export default function LoginScreen({ navigation }: any) {
       {/* קישורים בתחתית המסך */}
       <View style={styles.privacyContainer}>
         <TouchableOpacity onPress={openPrivacyPolicy}>
-          <Text style={styles.privacyLink}>מדיניות פרטיות</Text>
+          <Text style={[styles.privacyLink, { fontSize: responsiveFontSize(14) }]}>מדיניות פרטיות</Text>
         </TouchableOpacity>
         <Text style={{ marginHorizontal: 8 }}>|</Text>
         <TouchableOpacity onPress={openContactLink}>
-          <Text style={styles.privacyLink}>יצירת קשר</Text>
+          <Text style={[styles.privacyLink, { fontSize: responsiveFontSize(14) }]}>יצירת קשר</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -159,20 +187,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.white,
-    paddingHorizontal: getResponsivePadding().horizontal, // 16 on iPhone, more on iPad
+    paddingHorizontal: 16,
     paddingTop: 80,
   },
   input: {
     backgroundColor: '#f5f5f5',
     width: '100%',
-    maxWidth: getResponsiveDimensions().containerWidth, // Max width on iPad, full width on iPhone
     borderRadius: 24,
-    paddingVertical: getResponsiveMargin(16), // 16 on iPhone, 24 on iPad
+    paddingVertical: 16,
     paddingHorizontal: 24,
     marginBottom: 16,
-    fontSize: getResponsiveFontSize(16), // 16 on iPhone, 19.2 on iPad
+    fontSize: 16,
     textAlign: 'right',
-    alignSelf: 'center', // Center on iPad
+    alignSelf: 'center',
   },
   inputFilled: {
     backgroundColor: '#e8e8e8',
@@ -180,43 +207,41 @@ const styles = StyleSheet.create({
   loginButton: {
     backgroundColor: COLORS.blue,
     borderRadius: 24,
-    paddingVertical: getResponsiveMargin(16),
+    paddingVertical: 16,
     paddingHorizontal: 32,
     width: '100%',
-    maxWidth: getResponsiveDimensions().containerWidth,
     alignItems: 'center',
     alignSelf: 'center',
     marginBottom: 16,
   },
   loginText: {
     color: '#222',
-    fontSize: getResponsiveFontSize(16),
+    fontSize: 16,
     fontWeight: 'bold',
   },
   signupButton: {
     backgroundColor: COLORS.green,
     borderRadius: 24,
-    paddingVertical: getResponsiveMargin(16),
+    paddingVertical: 16,
     paddingHorizontal: 32,
     width: '100%',
-    maxWidth: getResponsiveDimensions().containerWidth,
     alignItems: 'center',
     alignSelf: 'center',
     marginBottom: 16,
   },
   signupText: {
     color: '#222',
-    fontSize: getResponsiveFontSize(16),
+    fontSize: 16,
     fontWeight: 'bold',
   },
   voluntreeHeader: {
     width: '100%',
     alignItems: 'center',
-    marginTop: getResponsiveMargin(32),
+    marginTop: 32,
     marginBottom: 0,
   },
   voluntreeTitle: {
-    fontSize: getResponsiveFontSize(38), // 38 on iPhone, 45.6 on iPad
+    fontSize: 38,
     fontWeight: 'bold',
     color: '#222',
     fontFamily: 'SpaceMono',
@@ -229,7 +254,7 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     height: 80,
-    marginBottom: getResponsiveMargin(24),
+    marginBottom: 24,
     overflow: 'hidden',
     width: '100%',
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -248,19 +273,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: getResponsiveMargin(24),
+    marginBottom: 24,
     marginLeft: 0,
     marginRight: 0,
   },
   privacyTitle: {
-    fontSize: getResponsiveFontSize(16),
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#222',
     marginBottom: 8,
     textAlign: 'center',
   },
   privacyLink: {
-    fontSize: getResponsiveFontSize(14),
+    fontSize: 14,
     color: '#007bff',
     textAlign: 'center',
     textDecorationLine: 'underline',

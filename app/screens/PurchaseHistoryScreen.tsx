@@ -2,17 +2,18 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useEffect, useState } from 'react';
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  FlatList,
-  Modal,
-  RefreshControl,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  Vibration,
-  View
+    Alert,
+    Animated,
+    Dimensions,
+    FlatList,
+    Modal,
+    Platform,
+    RefreshControl,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    Vibration,
+    View
 } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -48,6 +49,11 @@ const PurchaseHistoryScreen = () => {
   const [selectedCoupon, setSelectedCoupon] = useState<PurchasedCoupon | null>(null);
   const [showBarcodeModal, setShowBarcodeModal] = useState(false);
   const modalAnimation = React.useRef(new Animated.Value(0)).current;
+
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
 
   useEffect(() => {
     loadPurchasedCoupons();
@@ -157,7 +163,7 @@ const PurchaseHistoryScreen = () => {
       onPress={() => handleCouponPress(item)}
     >
       <View style={styles.couponHeader}>
-        <Text style={[styles.couponTitle, item.is_used && styles.usedText]}>
+        <Text style={[styles.couponTitle, item.is_used && styles.usedText, { fontSize: responsiveFontSize(18) }]}>
           {item.coupon_title}
         </Text>
         <View style={[
@@ -170,12 +176,12 @@ const PurchaseHistoryScreen = () => {
         </View>
       </View>
       
-      <Text style={[styles.couponDescription, item.is_used && styles.usedText]}>
+      <Text style={[styles.couponDescription, item.is_used && styles.usedText, { fontSize: responsiveFontSize(14) }]}>
         {item.coupon_description}
       </Text>
       
       <View style={styles.couponFooter}>
-        <Text style={[styles.coinValue, item.is_used && styles.usedText]}>
+        <Text style={[styles.coinValue, item.is_used && styles.usedText, { fontSize: responsiveFontSize(16) }]}>
           💰 {item.coins_spent} מטבעות
         </Text>
         <Text style={[styles.purchaseDate, item.is_used && styles.usedText]}>
@@ -194,10 +200,10 @@ const PurchaseHistoryScreen = () => {
   const EmptyState = () => (
     <View style={styles.emptyState}>
       <Text style={styles.emptyStateIcon}>🎁</Text>
-      <Text style={styles.emptyStateTitle}>אין קופונים עדיין</Text>
-      <Text style={styles.emptyStateSubtitle}>
-        לך לחנות המתנות ורכוש קופונים עם המטבעות שלך!
-      </Text>
+      <Text style={[styles.emptyStateTitle, { fontSize: responsiveFontSize(24) }]}>אין קופונים עדיין</Text>
+              <Text style={[styles.emptyStateSubtitle, { fontSize: responsiveFontSize(16) }]}>
+          לך לחנות המתנות ורכוש קופונים עם המטבעות שלך!
+        </Text>
       <TouchableOpacity
         style={styles.backToShopButton}
         onPress={() => navigation.goBack()}
@@ -214,7 +220,7 @@ const PurchaseHistoryScreen = () => {
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>הקופונים שלי</Text>
+        <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(24) }]}>הקופונים שלי</Text>
         <View style={styles.placeholder} />
       </View>
 

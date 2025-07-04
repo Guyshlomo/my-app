@@ -6,6 +6,7 @@ import {
   Animated,
   Dimensions,
   Image,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -128,6 +129,11 @@ export default function HomeScreen() {
   const [showConfetti, setShowConfetti] = useState<{[worldId: number]: boolean}>({});
   const [unlockedWorlds, setUnlockedWorlds] = useState<Set<number>>(new Set());
   const lockRotation = useRef(new Animated.Value(0)).current;
+
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
 
   // טעינת נתוני המשתמש בעת טעינת המסך
   useEffect(() => {
@@ -1228,8 +1234,8 @@ export default function HomeScreen() {
             <Text style={styles.adminSettingsIcon}>⚙️</Text>
           </TouchableOpacity>
           <View style={styles.adminHeaderContent}>
-            <Text style={styles.adminHeaderTitle}>פאנל ניהול אדמין</Text>
-            <Text style={styles.adminHeaderSubtitle}>שלום, {currentUser.firstName}</Text>
+            <Text style={[styles.adminHeaderTitle, { fontSize: responsiveFontSize(20) }]}>פאנל ניהול אדמין</Text>
+            <Text style={[styles.adminHeaderSubtitle, { fontSize: responsiveFontSize(14) }]}>שלום, {currentUser.firstName}</Text>
           </View>
         </View>
 
@@ -1550,7 +1556,7 @@ export default function HomeScreen() {
               <Text style={styles.settingsIcon}>⚙️</Text>
             </TouchableOpacity>
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>
+              <Text style={[styles.userName, { fontSize: responsiveFontSize(18) }]}>
                 {`שלום, ${(currentUser?.firstName || '') + (currentUser?.lastName ? ' ' + currentUser.lastName : '') || 'משתמש'}`}
               </Text>
             </View>
@@ -1574,14 +1580,14 @@ export default function HomeScreen() {
           <View style={styles.statsSection}>
             <View style={styles.statItem}>
               <Text style={styles.statIcon}>🤝</Text>
-              <Text style={styles.statValue}>{currentUser?.tasksCompleted || 0}</Text>
-              <Text style={styles.statLabel}>התנדבויות</Text>
+              <Text style={[styles.statValue, { fontSize: responsiveFontSize(18) }]}>{currentUser?.tasksCompleted || 0}</Text>
+              <Text style={[styles.statLabel, { fontSize: responsiveFontSize(12) }]}>התנדבויות</Text>
             </View>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statIcon}>🪙</Text>
-              <Text style={styles.statValue}>{currentUser?.coins || 0}</Text>
-              <Text style={styles.statLabel}>מטבעות</Text>
+              <Text style={[styles.statValue, { fontSize: responsiveFontSize(18) }]}>{currentUser?.coins || 0}</Text>
+              <Text style={[styles.statLabel, { fontSize: responsiveFontSize(12) }]}>מטבעות</Text>
             </View>
           </View>
 
@@ -1590,7 +1596,7 @@ export default function HomeScreen() {
             <View style={styles.progressBar}>
               <View style={[styles.progressFill, { width: `${((currentUser?.tasksCompleted || 0) % 10) * 10}%` }]} />
             </View>
-            <Text style={styles.progressText}>
+            <Text style={[styles.progressText, { fontSize: responsiveFontSize(14) }]}>
               {((currentUser?.tasksCompleted || 0) % 10)}/10 התנדבויות לשלב הבא
             </Text>
           </View>
@@ -1601,7 +1607,7 @@ export default function HomeScreen() {
               style={styles.adminButton} 
               onPress={() => navigation.navigate('AdminUsers' as any)}
             >
-              <Text style={styles.adminButtonText}>🔧 ניהול התנדבויות</Text>
+              <Text style={[styles.adminButtonText, { fontSize: responsiveFontSize(14) }]}>🔧 ניהול התנדבויות</Text>
             </TouchableOpacity>
           )}
         </View>

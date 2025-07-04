@@ -15,7 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, Animated, Image, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Animated, Dimensions, Image, Platform, RefreshControl, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { RootStackParamList } from '../MainNavigator';
 import { cancelVolunteerRegistration, completeVolunteerEvent, deleteVolunteerEvent, getCurrentUserFromSupabase, getEventRegistrations, registerForVolunteerEvent } from '../db/supabaseApi';
 import type { User, VolunteerEvent, VolunteerRegistration } from '../types/types';
@@ -38,7 +38,8 @@ const EventCard = ({
   registeredUsers,
   currentUserId,
   isRegistering,
-  isUnregistering
+  isUnregistering,
+  responsiveFontSize
 }: {
   event: VolunteerEvent;
   expanded: boolean;
@@ -53,6 +54,7 @@ const EventCard = ({
   currentUserId?: string;
   isRegistering?: boolean;
   isUnregistering?: boolean;
+  responsiveFontSize: (size: number) => number;
 }) => {
   // Simplified styling without complex animations
   const cardStyle = isRegistered ? {
@@ -74,20 +76,20 @@ const EventCard = ({
       )}
       <View style={styles.cardContent}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' }}>
-          <Text style={styles.cardTitle}>{event.title}</Text>
+          <Text style={[styles.cardTitle, { fontSize: responsiveFontSize(18) }]}>{event.title}</Text>
           {isRegistered && <MaterialIcons name="star" size={18} color="#4BB543" style={{ marginLeft: 4 }} />}
           {isFull && !isRegistered && <MaterialIcons name="group" size={18} color="#ff9800" style={{ marginLeft: 4 }} />}
         </View>
         
-        <Text style={styles.cardDesc}>{event.description}</Text>
-        <Text style={styles.cardLocation}>📍 {event.location}</Text>
+        <Text style={[styles.cardDesc, { fontSize: responsiveFontSize(14) }]}>{event.description}</Text>
+        <Text style={[styles.cardLocation, { fontSize: responsiveFontSize(14) }]}>📍 {event.location}</Text>
         
         <View style={styles.cardMetaRow}>
-          <Text style={styles.cardMeta}>
+          <Text style={[styles.cardMeta, { fontSize: responsiveFontSize(14) }]}>
             {formatDate(event.date)} | {formatTime(event.time)}
           </Text>
           <TouchableOpacity style={styles.cardButton} onPress={onToggleExpand}>
-            <Text style={styles.cardButtonText}>
+            <Text style={[styles.cardButtonText, { fontSize: responsiveFontSize(15) }]}>
               {expanded ? 'סגור' : 'לפרטים ⬇️'}
             </Text>
           </TouchableOpacity>
@@ -95,27 +97,28 @@ const EventCard = ({
         
         {expanded && (
           <View style={styles.expandedSection}>
-            <Text style={styles.expandedTitle}>פרטים נוספים:</Text>
-            <Text style={styles.expandedDesc}>📅 תאריך: {formatDate(event.date)}</Text>
-            <Text style={styles.expandedDesc}>🕐 שעה: {formatTime(event.time)}</Text>
-            <Text style={styles.expandedDesc}>📍 מיקום: {event.location}</Text>
-            <Text style={styles.expandedDesc}>👥 משתתפים: {event.current_participants}/{event.max_participants}</Text>
-            <Text style={styles.expandedDesc}>🪙 תגמול: {event.coins_reward} מטבעות</Text>
+            <Text style={[styles.expandedTitle, { fontSize: responsiveFontSize(16) }]}>פרטים נוספים:</Text>
+            <Text style={[styles.expandedDesc, { fontSize: responsiveFontSize(14) }]}>📅 תאריך: {formatDate(event.date)}</Text>
+            <Text style={[styles.expandedDesc, { fontSize: responsiveFontSize(14) }]}>🕐 שעה: {formatTime(event.time)}</Text>
+            <Text style={[styles.expandedDesc, { fontSize: responsiveFontSize(14) }]}>📍 מיקום: {event.location}</Text>
+            <Text style={[styles.expandedDesc, { fontSize: responsiveFontSize(14) }]}>👥 משתתפים: {event.current_participants}/{event.max_participants}</Text>
+            <Text style={[styles.expandedDesc, { fontSize: responsiveFontSize(14) }]}>🪙 תגמול: {event.coins_reward} מטבעות</Text>
             {event.admin_name && (
-              <Text style={styles.expandedDesc}>👤 אחראי: <Text style={styles.boldText}>{event.admin_name}</Text></Text>
+              <Text style={[styles.expandedDesc, { fontSize: responsiveFontSize(14) }]}>👤 אחראי: <Text style={styles.boldText}>{event.admin_name}</Text></Text>
             )}
             
             {/* רשימת נרשמים */}
             {registeredUsers.length > 0 && (
               <>
-                <Text style={styles.expandedTitle}>נרשמו להתנדבות ({registeredUsers.length}):</Text>
+                <Text style={[styles.expandedTitle, { fontSize: responsiveFontSize(16) }]}>נרשמו להתנדבות ({registeredUsers.length}):</Text>
                 <View style={styles.volunteersList}>
                   {registeredUsers.map((registration, index) => (
                     <Text 
                       key={registration.id} 
                       style={[
                         styles.volunteerName,
-                        registration.user_id === currentUserId && styles.currentUserVolunteer
+                        registration.user_id === currentUserId && styles.currentUserVolunteer,
+                        { fontSize: responsiveFontSize(14) }
                       ]}
                     >
                       {index + 1}. {registration.users?.firstname} {registration.users?.lastname}
@@ -143,14 +146,14 @@ const EventCard = ({
                   color="#fff" 
                   style={{ marginLeft: 6 }} 
                 />
-                <Text style={styles.registerButtonText}>
+                <Text style={[styles.registerButtonText, { fontSize: responsiveFontSize(18) }]}>
                   {isRegistering ? 'נרשם...' : 'הירשם עכשיו'}
                 </Text>
               </TouchableOpacity>
             ) : !isRegistered && isFull ? (
               <View style={styles.fullButton}>
                 <MaterialIcons name="group" size={20} color="#666" style={{ marginLeft: 6 }} />
-                <Text style={styles.fullButtonText}>מלא</Text>
+                <Text style={[styles.fullButtonText, { fontSize: responsiveFontSize(18) }]}>מלא</Text>
               </View>
             ) : (
               <TouchableOpacity 
@@ -167,7 +170,7 @@ const EventCard = ({
                   color="#fff" 
                   style={{ marginLeft: 6 }} 
                 />
-                <Text style={styles.unregisterButtonText}>
+                <Text style={[styles.unregisterButtonText, { fontSize: responsiveFontSize(18) }]}>
                   {isUnregistering ? 'מבטל...' : 'בטל הרשמה'}
                 </Text>
               </TouchableOpacity>
@@ -186,6 +189,11 @@ function VolunteerScreen() {
   const [userRegistrations, setUserRegistrations] = useState<VolunteerRegistration[]>([]);
   const [eventRegistrations, setEventRegistrations] = useState<{ [eventId: string]: any[] }>({});
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
@@ -566,11 +574,11 @@ function VolunteerScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <Text style={styles.headerIcon}>⚙️</Text>
-          <Text style={styles.headerTitle}>ניהול התנדבויות</Text>
+          <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(24) }]}>ניהול התנדבויות</Text>
         </View>
 
         <View style={styles.summaryBar}>
-          <Text style={styles.summaryText}>סה״כ {events.length} התנדבויות פעילות</Text>
+          <Text style={[styles.summaryText, { fontSize: responsiveFontSize(16) }]}>סה״כ {events.length} התנדבויות פעילות</Text>
         </View>
 
         <ScrollView 
@@ -733,15 +741,15 @@ function VolunteerScreen() {
       )}
       
       <View style={styles.summaryBar}>
-        <Text style={styles.summaryText}>נרשמת ל-{registeredCount} התנדבויות</Text>
+        <Text style={[styles.summaryText, { fontSize: responsiveFontSize(16) }]}>נרשמת ל-{registeredCount} התנדבויות</Text>
         <TouchableOpacity style={styles.filterBtn} onPress={() => setShowOnlyRegistered(v => !v)}>
-          <Text style={styles.filterBtnText}>{showOnlyRegistered ? 'הצג הכל' : 'הצג רק שנרשמתי'}</Text>
+          <Text style={[styles.filterBtnText, { fontSize: responsiveFontSize(15) }]}>{showOnlyRegistered ? 'הצג הכל' : 'הצג רק שנרשמתי'}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.header}>
         <Text style={styles.headerIcon}>🤲</Text>
-        <Text style={styles.headerTitle}>התנדבויות זמינות</Text>
+        <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(24) }]}>התנדבויות זמינות</Text>
       </View>
 
       <ScrollView 
@@ -757,7 +765,7 @@ function VolunteerScreen() {
       >
         {filteredEvents.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>
+            <Text style={[styles.emptyText, { fontSize: responsiveFontSize(18) }]}>
               {showOnlyRegistered ? 'לא נרשמת לאף התנדבות' : 'אין התנדבויות זמינות כרגע'}
             </Text>
           </View>
@@ -783,6 +791,7 @@ function VolunteerScreen() {
                 currentUserId={currentUser?.id}
                 isRegistering={registeringEvents.has(event.id)}
                 isUnregistering={unregisteringEvents.has(event.id)}
+                responsiveFontSize={responsiveFontSize}
               />
             );
           })

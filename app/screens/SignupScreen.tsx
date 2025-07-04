@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Dimensions, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { signupWithSupabase } from '../db/supabaseApi';
 
@@ -18,6 +18,11 @@ const SETTLEMENTS = [
 ];
 
 export default function SignupScreen({ navigation }: any) {
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
@@ -132,7 +137,7 @@ export default function SignupScreen({ navigation }: any) {
       <TouchableOpacity style={styles.backIcon} onPress={() => navigation.navigate('Login')}>
         <Text style={{ fontSize: 28, color: '#222' }}>{'←'}</Text>
       </TouchableOpacity>
-      <Text style={styles.title}>הרשמה</Text>
+      <Text style={[styles.title, { fontSize: responsiveFontSize(28) }]}>הרשמה</Text>
       
       <ScrollView 
         style={styles.scrollView}
@@ -153,7 +158,7 @@ export default function SignupScreen({ navigation }: any) {
               <Text style={{ fontSize: 32, color: '#888' }}>?</Text>
             )}
           </TouchableOpacity>
-          <Text style={styles.avatarLabel}>בחר אווטר</Text>
+          <Text style={[styles.avatarLabel, { fontSize: responsiveFontSize(16) }]}>בחר אווטר</Text>
           <Modal
             visible={avatarModalVisible}
             animationType="slide"
@@ -162,7 +167,7 @@ export default function SignupScreen({ navigation }: any) {
           >
             <Pressable style={styles.avatarModalOverlay} onPress={() => setAvatarModalVisible(false)}>
               <View style={styles.avatarModalContent}>
-                <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }}>בחר אווטר</Text>
+                <Text style={[{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }, { fontSize: responsiveFontSize(18) }]}>בחר אווטר</Text>
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingVertical: 8 }}>
                   {avatarSeeds.map((seed, idx) => (
                     <TouchableOpacity key={seed ?? 'empty'} onPress={() => { setAvatarSeed(seed); setAvatarModalVisible(false); }}>
@@ -334,7 +339,7 @@ export default function SignupScreen({ navigation }: any) {
         </Modal>
 
         <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
-          <Text style={styles.signupText}>הרשמה</Text>
+          <Text style={[styles.signupText, { fontSize: responsiveFontSize(16) }]}>הרשמה</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Dimensions,
   Image,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -33,10 +34,11 @@ type NavigationProp = StackNavigationProp<RootStackParamList>;
 type UserWithTasks = User & { tasksCompleted?: number };
 
 // קומפוננט ממוטב לכרטיס משתמש
-const UserCard = React.memo(({ user, index, isCurrentUser }: {
+const UserCard = React.memo(({ user, index, isCurrentUser, responsiveFontSize }: {
   user: UserWithTasks;
   index: number;
   isCurrentUser: boolean;
+  responsiveFontSize: (size: number) => number;
 }) => (
   <View>
     <TouchableOpacity
@@ -59,8 +61,8 @@ const UserCard = React.memo(({ user, index, isCurrentUser }: {
           </View>
         )}
         <View style={styles.userDetails}>
-          <Text style={[styles.userName, { flex: 1, textAlign: 'right' }]}>{`${user.firstName} ${user.lastName}`}</Text>
-          <Text style={[styles.userStats, { flex: 1, textAlign: 'right' }]}>{`${user.tasksCompleted || 0} התנדבויות`}</Text>
+          <Text style={[styles.userName, { flex: 1, textAlign: 'right', fontSize: responsiveFontSize(16) }]}>{`${user.firstName} ${user.lastName}`}</Text>
+          <Text style={[styles.userStats, { flex: 1, textAlign: 'right', fontSize: responsiveFontSize(14) }]}>{`${user.tasksCompleted || 0} התנדבויות`}</Text>
         </View>
       </View>
       <View style={styles.rankContainer}>
@@ -90,6 +92,11 @@ export default function TrophyScreen() {
   const [confettiKey, setConfettiKey] = useState(0);
   const confettiRef = useRef<ConfettiCannon>(null);
   const [userCoins, setUserCoins] = useState(0);
+
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -176,7 +183,7 @@ export default function TrophyScreen() {
         <TouchableOpacity onPress={() => navigation.navigate('Home')}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>הישגים</Text>
+        <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(24) }]}>הישגים</Text>
       </View>
 
       {showConfetti && (
@@ -209,7 +216,7 @@ export default function TrophyScreen() {
               <Text style={styles.headerAvatarText}>{currentUser?.firstName?.[0] || '?'}</Text>
             </View>
           )}
-          <Text style={styles.rankText}>
+          <Text style={[styles.rankText, { fontSize: responsiveFontSize(16) }]}>
             {userRankText}
           </Text>
         </View>
@@ -221,12 +228,12 @@ export default function TrophyScreen() {
           {/* תצוגת המטבעות מיד מתחת לגביע */}
           <View style={styles.coinsContainer}>
             <Text style={styles.coinsEmoji}>✨</Text>
-            <Text style={styles.coinsText}>
+            <Text style={[styles.coinsText, { fontSize: responsiveFontSize(16) }]}>
               {`צברת `}
               <Text style={styles.coinsNumber}>{currentUser?.tasksCompleted || 0}</Text>
               {` התנדבויות`}
             </Text>
-            <Text style={styles.congratsText}>כל הכבוד! המשך כך! 🎉</Text>
+            <Text style={[styles.congratsText, { fontSize: responsiveFontSize(14) }]}>כל הכבוד! המשך כך! 🎉</Text>
           </View>
         </View>
       </View>
@@ -252,6 +259,7 @@ export default function TrophyScreen() {
               user={user}
               index={index}
               isCurrentUser={user.id === currentUser?.id}
+              responsiveFontSize={responsiveFontSize}
             />
           ))
         )}

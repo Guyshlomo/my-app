@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
-import React, { useEffect, useState } from 'react';
-import { I18nManager, Image, ImageBackground, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import React, { useState } from 'react';
+import { Dimensions, I18nManager, Image, ImageBackground, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Calendar, LocaleConfig } from 'react-native-calendars';
 import { getCurrentUserFromSupabase, getUserVolunteerRegistrations } from '../db/supabaseApi';
 import { addTasksCompletedListener, removeTasksCompletedListener } from '../utils/eventEmitter';
@@ -30,15 +30,21 @@ LocaleConfig.defaultLocale = 'he';
 
 function CalendarScreen() {
   const navigation = useNavigation<any>();
+
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
+
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
   const [userRegistrations, setUserRegistrations] = useState<any[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const isFocused = useIsFocused();
 
-  useEffect(() => {
-    if (isFocused) {
+  // Use useFocusEffect properly
+  useFocusEffect(
+    React.useCallback(() => {
       loadUserRegistrations();
       
       // Add auto-refresh every 5 seconds
@@ -59,8 +65,8 @@ function CalendarScreen() {
         clearInterval(refreshInterval);
         removeTasksCompletedListener(listener);
       };
-    }
-  }, [isFocused]);
+    }, [])
+  );
 
   const loadUserRegistrations = async () => {
     try {
@@ -222,7 +228,7 @@ function CalendarScreen() {
           <Modal visible={!!selectedEvent} transparent animationType="fade">
             <Pressable style={styles.modalOverlay} onPress={() => setSelectedEvent(null)}>
               <View style={styles.eventModalCard}>
-                <Text style={styles.eventModalTitle}>{selectedEvent?.volunteer_events?.title}</Text>
+                <Text style={[styles.eventModalTitle, { fontSize: responsiveFontSize(20) }]}>{selectedEvent?.volunteer_events?.title}</Text>
                 <Text style={styles.eventModalMeta}>{selectedEvent?.volunteer_events?.date} | {selectedEvent?.volunteer_events?.time}</Text>
                 <Text style={styles.eventModalDesc}>
                   {selectedEvent?.status === 'completed' ? 'התנדבות שבוצעה בהצלחה!' : 'התנדבות רשומה - ממתינה לביצוע'}
@@ -236,11 +242,11 @@ function CalendarScreen() {
           {/* Today's events */}
           {todayRegistrations.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>ההתנדבויות שלי היום</Text>
+              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(20) }]}>ההתנדבויות שלי היום</Text>
               {todayRegistrations.map((registration, index) => (
                 <View key={registration.id} style={[styles.eventCard, styles.todayEventCard, { backgroundColor: '#FFE082' }]}>
                   <View style={styles.todayEventHeader}>
-                    <Text style={styles.eventTitle}>{registration.volunteer_events.title}</Text>
+                    <Text style={[styles.eventTitle, { fontSize: responsiveFontSize(17) }]}>{registration.volunteer_events.title}</Text>
                     <Text style={styles.todayBadge}>היום</Text>
                   </View>
                   <Text style={styles.eventMeta}>{registration.volunteer_events.date} | {registration.volunteer_events.time}</Text>
@@ -259,9 +265,9 @@ function CalendarScreen() {
           {/* Next event */}
           {nextEvent && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>ההתנדבות הקרובה</Text>
+              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(20) }]}>ההתנדבות הקרובה</Text>
               <View style={[styles.eventCard, { backgroundColor: cardColors[0] }]}>
-                <Text style={styles.eventTitle}>{nextEvent.volunteer_events.title}</Text>
+                <Text style={[styles.eventTitle, { fontSize: responsiveFontSize(17) }]}>{nextEvent.volunteer_events.title}</Text>
                 <Text style={styles.eventMeta}>{nextEvent.volunteer_events.date} | {nextEvent.volunteer_events.time}</Text>
                 <Text style={styles.eventLocation}>📍 {nextEvent.volunteer_events.location}</Text>
               </View>
@@ -270,10 +276,10 @@ function CalendarScreen() {
           {/* Upcoming events */}
           {nextEvents.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>ההתנדבויות הבאות שלי</Text>
+              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(20) }]}>ההתנדבויות הבאות שלי</Text>
               {nextEvents.map((registration, index) => (
                 <View key={registration.id} style={[styles.eventCard, { backgroundColor: cardColors[(index + 1) % cardColors.length] }]}>
-                  <Text style={styles.eventTitle}>{registration.volunteer_events.title}</Text>
+                  <Text style={[styles.eventTitle, { fontSize: responsiveFontSize(17) }]}>{registration.volunteer_events.title}</Text>
                   <Text style={styles.eventMeta}>{registration.volunteer_events.date} | {registration.volunteer_events.time}</Text>
                   <Text style={styles.eventLocation}>📍 {registration.volunteer_events.location}</Text>
                 </View>
@@ -283,10 +289,10 @@ function CalendarScreen() {
           {/* Completed events */}
           {completedRegistrations.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>התנדבויות שבוצעו</Text>
+              <Text style={[styles.sectionTitle, { fontSize: responsiveFontSize(20) }]}>התנדבויות שבוצעו</Text>
               {completedRegistrations.map((registration, index) => (
                 <View key={registration.id} style={[styles.eventCard, { backgroundColor: cardColors[index % cardColors.length] }, styles.pastEventCard]}>
-                  <Text style={[styles.eventTitle, styles.pastEventText]}>{registration.volunteer_events.title}</Text>
+                  <Text style={[styles.eventTitle, styles.pastEventText, { fontSize: responsiveFontSize(17) }]}>{registration.volunteer_events.title}</Text>
                   <Text style={[styles.eventMeta, styles.pastEventText]}>{registration.volunteer_events.date} | {registration.volunteer_events.time}</Text>
                   <Text style={[styles.eventLocation, styles.pastEventText]}>📍 {registration.volunteer_events.location}</Text>
                   <Text style={styles.completedBadge}>✅ הושלמה בהצלחה</Text>
@@ -297,13 +303,13 @@ function CalendarScreen() {
           {/* Empty states */}
           {upcomingRegistrations.length === 0 && completedRegistrations.length === 0 && (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyStateTitle}>אין התנדבויות רשומות</Text>
-              <Text style={styles.emptyStateText}>עבור למסך ההתנדבות כדי להירשם לאירועים</Text>
+              <Text style={[styles.emptyStateTitle, { fontSize: responsiveFontSize(20) }]}>אין התנדבויות רשומות</Text>
+              <Text style={[styles.emptyStateText, { fontSize: responsiveFontSize(16) }]}>עבור למסך ההתנדבות כדי להירשם לאירועים</Text>
               <TouchableOpacity 
                 style={styles.emptyStateButton}
                 onPress={() => navigation.navigate('Volunteer', { from: 'Calendar' })}
               >
-                <Text style={styles.emptyStateButtonText}>עבור להתנדבות</Text>
+                <Text style={[styles.emptyStateButtonText, { fontSize: responsiveFontSize(16) }]}>עבור להתנדבות</Text>
               </TouchableOpacity>
             </View>
           )}

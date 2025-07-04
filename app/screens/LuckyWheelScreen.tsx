@@ -3,7 +3,7 @@ import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, Easing, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Easing, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { Circle, Defs, G, Path, Stop, Svg, LinearGradient as SvgGradient, Image as SvgImage, Text as SvgText, Use } from 'react-native-svg';
 import { getCurrentUserFromSupabase, savePurchasedCoupon, updateUserInSupabase } from '../db/supabaseApi';
@@ -784,18 +784,23 @@ const LuckyWheelScreen: React.FC = () => {
     }
   }
 
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
+
   return (
     <View style={styles.container}>
       <LinearGradient
         colors={['#FF6B6B', '#FFD93D', '#4ECDC4']}
         style={styles.gradient}
       >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.backButtonText}>חזרה לחנות</Text>
-        </TouchableOpacity>
+                  <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={[styles.backButtonText, { fontSize: responsiveFontSize(18) }]}>חזרה לחנות</Text>
+          </TouchableOpacity>
 
         <View style={styles.coinsContainer}>
           <View style={styles.coinsContent}>
@@ -804,11 +809,11 @@ const LuckyWheelScreen: React.FC = () => {
               size={28} 
               color="#FFD700" 
             />
-            <Text style={styles.coinsText}>
+            <Text style={[styles.coinsText, { fontSize: responsiveFontSize(18) }]}>
               {displayedCoins.toLocaleString()}
             </Text>
           </View>
-          <Text style={styles.coinsLabel}>
+          <Text style={[styles.coinsLabel, { fontSize: responsiveFontSize(14) }]}>
             המטבעות שלי
           </Text>
         </View>
@@ -906,11 +911,11 @@ const LuckyWheelScreen: React.FC = () => {
                     style={styles.spinButtonIcon}
                   />
                   <View style={styles.spinButtonTextContainer}>
-                    <Text style={styles.spinButtonText}>
+                    <Text style={[styles.spinButtonText, { fontSize: responsiveFontSize(24) }]}>
                       {getSpinButtonText()}
                     </Text>
                     {!hasFreeSpins && (
-                      <Text style={styles.spinCostText}>עלות סיבוב 1000 מטבעות</Text>
+                      <Text style={[styles.spinCostText, { fontSize: responsiveFontSize(12) }]}>עלות סיבוב 1000 מטבעות</Text>
                     )}
                   </View>
                   <Icon 

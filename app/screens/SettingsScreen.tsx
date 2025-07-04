@@ -6,11 +6,12 @@ import {
     Animated,
     Dimensions,
     Linking,
+    Platform,
     SafeAreaView,
     StyleSheet,
     Text,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { supabase } from '../config/supabase';
 import { deleteUserAccount, getCurrentUserFromSupabase } from '../db/supabaseApi';
@@ -20,13 +21,17 @@ interface SettingsScreenProps {
   onClose: () => void;
 }
 
-const { width: screenWidth } = Dimensions.get('window');
-const DRAWER_WIDTH = screenWidth * 0.75;
+const DRAWER_WIDTH = Dimensions.get('window').width * 0.75;
 
 const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => {
   const navigation = useNavigation<StackNavigationProp<any>>();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+
+  // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
+  const { width: screenWidth } = Dimensions.get('window');
+  const isIPad = Platform.OS === 'ios' && screenWidth >= 768;
+  const responsiveFontSize = (baseSize: number) => isIPad ? baseSize * 1.2 : baseSize;
 
   useEffect(() => {
     if (visible) {
@@ -171,7 +176,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
       >
         <SafeAreaView style={styles.drawerContent}>
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>הגדרות</Text>
+            <Text style={[styles.headerTitle, { fontSize: responsiveFontSize(24) }]}>הגדרות</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
@@ -181,7 +186,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
             <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
               <View style={styles.menuItemContent}>
                 <Text style={styles.menuItemIcon}>🚪</Text>
-                <Text style={styles.menuItemText}>התנתק מהחשבון</Text>
+                <Text style={[styles.menuItemText, { fontSize: responsiveFontSize(18) }]}>התנתק מהחשבון</Text>
               </View>
               <Text style={styles.menuItemArrow}>‹</Text>
             </TouchableOpacity>
@@ -189,7 +194,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
             <TouchableOpacity style={[styles.menuItem, styles.dangerItem]} onPress={handleDeleteAccount}>
               <View style={styles.menuItemContent}>
                 <Text style={styles.menuItemIcon}>🗑️</Text>
-                <Text style={[styles.menuItemText, styles.dangerText]}>מחיקת החשבון</Text>
+                <Text style={[styles.menuItemText, styles.dangerText, { fontSize: responsiveFontSize(18) }]}>מחיקת החשבון</Text>
               </View>
               <Text style={[styles.menuItemArrow, styles.dangerText]}>‹</Text>
             </TouchableOpacity>
@@ -197,15 +202,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
             <TouchableOpacity style={styles.menuItem} onPress={handleContact}>
               <View style={styles.menuItemContent}>
                 <Text style={styles.menuItemIcon}>📞</Text>
-                <Text style={styles.menuItemText}>צור קשר</Text>
+                <Text style={[styles.menuItemText, { fontSize: responsiveFontSize(18) }]}>צור קשר</Text>
               </View>
               <Text style={styles.menuItemArrow}>‹</Text>
             </TouchableOpacity>
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerText}>Voluntree v1.0</Text>
-            <Text style={styles.footerSubtext}>© 2024 Guy Shlomo</Text>
+            <Text style={[styles.footerText, { fontSize: responsiveFontSize(16) }]}>Voluntree v1.0</Text>
+            <Text style={[styles.footerSubtext, { fontSize: responsiveFontSize(14) }]}>© 2024 Guy Shlomo</Text>
           </View>
         </SafeAreaView>
       </Animated.View>
