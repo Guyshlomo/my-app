@@ -15,7 +15,7 @@
       "supportsTablet": false,
       "deviceFamily": ["1"],
       "bundleIdentifier": "com.voluntree.myapp",
-      "buildNumber": "17",
+      "buildNumber": "20",
       "infoPlist": {
         "UIDeviceFamily": [1],
         "LSRequiresIPhoneOS": true,
