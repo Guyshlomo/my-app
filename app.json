@@ -12,15 +12,17 @@
       "ios"
     ],
     "ios": {
-      "supportsTablet": false,
+      "supportsTablet": true,
       "deviceFamily": [
-        "1"
+        "1",
+        "2"
       ],
       "bundleIdentifier": "com.voluntree.myapp",
-      "buildNumber": "22",
+      "buildNumber": "23",
       "infoPlist": {
         "UIDeviceFamily": [
-          1
+          1,
+          2
         ],
         "LSRequiresIPhoneOS": true,
         "NSAppTransportSecurity": {
