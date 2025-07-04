@@ -13,6 +13,7 @@ export interface User {
   isAdmin: boolean;
   avatar_seed?: string;
   avatar_style?: string;
+  showEmail?: boolean;
 }
 
 export interface VolunteerActivity {

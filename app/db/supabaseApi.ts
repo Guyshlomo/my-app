@@ -13,7 +13,8 @@ export async function signupWithSupabase({
   avatarSeed,
   avatarStyle,
   settlement,
-  birthDate
+  birthDate,
+  showEmail = true
 }: {
   email: string;
   password: string;
@@ -24,6 +25,7 @@ export async function signupWithSupabase({
   avatarStyle?: string;
   settlement?: string;
   birthDate?: Date;
+  showEmail?: boolean;
 }) {
   try {
     console.log('🔐 [Supabase] Starting signup process...');
@@ -60,8 +62,9 @@ export async function signupWithSupabase({
           profileimage: profileImage,
           avatar_seed: avatarSeed,
           avatar_style: avatarStyle,
-          settlement: settlement,
-          birthdate: birthDate?.toISOString(),
+          settlement: settlement || null,
+          birthdate: birthDate?.toISOString() || null,
+          show_email: showEmail,
         }
       ]);
 
@@ -160,6 +163,7 @@ export async function getCurrentUserFromSupabase(): Promise<User | null> {
       birthDate: profile.birthdate,
       avatar_seed: profile.avatar_seed,
       avatar_style: profile.avatar_style,
+      showEmail: profile.show_email ?? true,
     };
 
     console.log('🔄 [Supabase] Converted user:', {

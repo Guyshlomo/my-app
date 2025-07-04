@@ -26,6 +26,7 @@ export default function SignupScreen({ navigation }: any) {
   const [birthDate, setBirthDate] = useState<Date | null>(null);
   const [settlement, setSettlement] = useState('');
   const [avatarSeed, setAvatarSeed] = useState<string | null>(null);
+  const [showEmail, setShowEmail] = useState(true); // אפשרות להסתיר/להציג מייל
   const avatarStyle = 'adventurer';
   const avatarSeeds = [
     null, // אופציית ברירת מחדל - עיגול ריק עם סימן שאלה
@@ -55,9 +56,9 @@ export default function SignupScreen({ navigation }: any) {
   };
 
   const handleSignup = async () => {
-    // בדיקות תקינות
-    if (!firstName || !lastName || !email || !password || !confirmPassword || !birthDate || !settlement) {
-      Alert.alert('שגיאה', 'נא למלא את כל השדות');
+    // בדיקות תקינות - רק שדות חובה
+    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+      Alert.alert('שגיאה', 'נא למלא את השדות החובה: שם פרטי, שם משפחה, אימייל וסיסמה');
       return;
     }
 
@@ -71,6 +72,38 @@ export default function SignupScreen({ navigation }: any) {
       return;
     }
 
+    // בדיקת גיל מינימום 17 (רק אם תאריך לידה הוזן)
+    if (birthDate) {
+      const today = new Date();
+      const birthYear = birthDate.getFullYear();
+      const birthMonth = birthDate.getMonth();
+      const birthDay = birthDate.getDate();
+      
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth();
+      const currentDay = today.getDate();
+      
+      let age = currentYear - birthYear;
+      
+      // אם עוד לא הגיע יום הולדת השנה, מפחיתים שנה
+      if (currentMonth < birthMonth || (currentMonth === birthMonth && currentDay < birthDay)) {
+        age--;
+      }
+      
+      if (age < 17) {
+        Alert.alert(
+          'הגבלת גיל', 
+          'האפליקציה מיועדת לגילאי 17 ומעלה בלבד.\nגילך הנוכחי: ' + age + ' שנים',
+          [{ text: 'הבנתי', style: 'default' }]
+        );
+        return;
+      }
+      
+      console.log('✅ Age validation passed. User age:', age);
+    } else {
+      console.log('ℹ️ No birth date provided - skipping age validation');
+    }
+
     try {
       console.log('🚀 [Supabase] מתחיל תהליך הרשמה...');
       await signupWithSupabase({
@@ -81,7 +114,8 @@ export default function SignupScreen({ navigation }: any) {
         avatarSeed,
         avatarStyle,
         settlement,
-        birthDate,
+        birthDate: birthDate || undefined,
+        showEmail, // הוספת אפשרות הסתרת מייל
       });
       console.log('✅ [Supabase] הרשמה הושלמה בהצלחה');
       Alert.alert('הצלחה', 'נרשמת בהצלחה!', [
@@ -153,56 +187,89 @@ export default function SignupScreen({ navigation }: any) {
             </Pressable>
           </Modal>
         </View>
-        <TextInput
-          style={[styles.input, firstName ? styles.inputFilled : null]}
-          placeholder="שם פרטי"
-          value={firstName}
-          onChangeText={setFirstName}
-          placeholderTextColor="#888"
-        />
-        <TextInput
-          style={[styles.input, lastName ? styles.inputFilled : null]}
-          placeholder="שם משפחה"
-          value={lastName}
-          onChangeText={setLastName}
-          placeholderTextColor="#888"
-        />
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.input, firstName ? styles.inputFilled : null]}
+            placeholder="שם פרטי"
+            value={firstName}
+            onChangeText={setFirstName}
+            placeholderTextColor="#888"
+          />
+          <Text style={styles.requiredStar}>*</Text>
+        </View>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.input, lastName ? styles.inputFilled : null]}
+            placeholder="שם משפחה"
+            value={lastName}
+            onChangeText={setLastName}
+            placeholderTextColor="#888"
+          />
+          <Text style={styles.requiredStar}>*</Text>
+        </View>
         <TouchableOpacity
           style={[styles.input, settlement ? styles.inputFilled : null]}
           onPress={() => setSettlementModalVisible(true)}
         >
           <View style={styles.settlementPickerContent}>
             <Text style={styles.settlementText}>
-              {settlement || 'בחר ישוב'}
+              {settlement || 'בחר ישוב (אופציונלי)'}
             </Text>
             <Text style={styles.dropdownIcon}>▼</Text>
           </View>
         </TouchableOpacity>
-        <TextInput
-          style={[styles.input, email ? styles.inputFilled : null]}
-          placeholder="אימייל"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-          autoCapitalize="none"
-          placeholderTextColor="#888"
-        />
-        <TextInput
-          style={[styles.input, password ? styles.inputFilled : null]}
-          placeholder="סיסמה"
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholderTextColor="#888"
-        />
-        <TextInput
-          style={[styles.input, confirmPassword ? styles.inputFilled : null]}
-          placeholder="אימות סיסמה"
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          placeholderTextColor="#888"
-        />
+        
+        <View style={styles.sectionSpacer} />
+        
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.input, email ? styles.inputFilled : null]}
+            placeholder="אימייל"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+            autoCapitalize="none"
+            placeholderTextColor="#888"
+          />
+          <Text style={styles.requiredStar}>*</Text>
+        </View>
+        
+        {/* אפשרות הסתרת מייל */}
+        <View style={styles.emailVisibilityContainer}>
+          <TouchableOpacity 
+            style={styles.checkboxContainer}
+            onPress={() => setShowEmail(!showEmail)}
+          >
+            <View style={[styles.checkbox, showEmail && styles.checkboxChecked]}>
+              {showEmail && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.checkboxLabel}>
+              הצג כתובת מייל למשתמשים אחרים
+            </Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.input, password ? styles.inputFilled : null]}
+            placeholder="סיסמה"
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            placeholderTextColor="#888"
+          />
+          <Text style={styles.requiredStar}>*</Text>
+        </View>
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={[styles.input, confirmPassword ? styles.inputFilled : null]}
+            placeholder="אימות סיסמה"
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry
+            placeholderTextColor="#888"
+          />
+          <Text style={styles.requiredStar}>*</Text>
+        </View>
         <TouchableOpacity
           style={[styles.datePickerButton, birthDate ? styles.inputFilled : null]}
           onPress={() => setDatePickerVisible(true)}
@@ -212,7 +279,7 @@ export default function SignupScreen({ navigation }: any) {
           </View>
           <View style={styles.textContainer}>
             <Text style={[styles.datePickerText, !birthDate && styles.placeholderText]}>
-              {birthDate ? birthDate.toLocaleDateString('he-IL') : 'תאריך לידה'}
+              {birthDate ? birthDate.toLocaleDateString('he-IL') : 'תאריך לידה (אופציונלי)'}
             </Text>
           </View>
         </TouchableOpacity>
@@ -293,8 +360,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#222',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 8,
     marginTop: 40,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 20,
   },
   scrollView: {
     flex: 1,
@@ -320,14 +394,28 @@ const styles = StyleSheet.create({
     color: '#222',
     textAlign: 'center',
   },
+  inputContainer: {
+    position: 'relative',
+    marginBottom: 12,
+  },
   input: {
     backgroundColor: '#f5f5f5',
     borderRadius: 20,
     paddingVertical: 12,
     paddingHorizontal: 20,
-    marginBottom: 12,
     fontSize: 16,
     textAlign: 'right',
+  },
+  requiredStar: {
+    position: 'absolute',
+    right: 8,
+    top: 12,
+    color: 'red',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  sectionSpacer: {
+    height: 18,
   },
   inputFilled: {
     backgroundColor: '#e8e8e8',
@@ -469,5 +557,37 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     marginHorizontal: 5,
     backgroundColor: '#f5f5f5',
+  },
+  emailVisibilityContainer: {
+    marginBottom: 12,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: '#B7EFC5',
+    borderRadius: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    backgroundColor: '#fff',
+  },
+  checkboxChecked: {
+    backgroundColor: '#B7EFC5',
+  },
+  checkmark: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    color: '#222',
+    textAlign: 'right',
   },
 });

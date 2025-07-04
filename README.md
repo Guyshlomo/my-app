@@ -1,3 +1,41 @@
+# Voluntree - Volunteer Management App
+
+A React Native Expo app for volunteer management and community engagement.
+
+## Privacy Policy Setup
+
+To set up the privacy policy for the app:
+
+1. Create a new GitHub repository called `voluntree-privacy-policy`
+2. Upload the `privacy-policy.html` file to the repository
+3. Enable GitHub Pages in repository settings
+4. The privacy policy will be available at: `https://[your-username].github.io/voluntree-privacy-policy/`
+
+Current privacy policy URL configured in the app: `https://guy1254.github.io/voluntree-privacy-policy/`
+
+## Features
+
+- User registration and authentication (17+ age requirement)
+- Volunteer event management
+- Community engagement
+- Rewards system with coins
+- Gift redemption
+- Admin panel for event management
+
+## Installation
+
+```bash
+npm install
+npx expo start
+```
+
+## Build for App Store
+
+```bash
+eas build --platform ios
+eas submit --platform ios
+```
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).

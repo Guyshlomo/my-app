@@ -1,20 +1,22 @@
 {
   "expo": {
-    "name": "my-app",
-    "slug": "my-app",
+    "name": "Voluntree",
+    "slug": "voluntree",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/appicon.png",
-    "scheme": "myapp",
+    "scheme": "voluntree",
     "userInterfaceStyle": "automatic",
-    "development": {
-      "developmentClient": false,
-      "distribution": "internal"
-    },
+    "description": "A volunteer management and community engagement platform connecting volunteers with local organizations. Minimum age requirement: 17 years.",
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
+      "bundleIdentifier": "com.voluntree.myapp",
+      "buildNumber": "7",
       "infoPlist": {
-        "NSUserTrackingUsageDescription": "This identifier will be used to deliver personalized ads to you.",
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false,
           "NSAllowsLocalNetworking": true,
@@ -27,21 +29,15 @@
             }
           }
         },
-        "SKAdNetworkItems": [
-          {
-            "SKAdNetworkIdentifier": "v9wttpbfk9.skadnetwork"
-          },
-          {
-            "SKAdNetworkIdentifier": "n38lu8286q.skadnetwork"
-          }
-        ]
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.voluntree.myapp"
     },
     "web": {
       "bundler": "metro",
@@ -68,6 +64,13 @@
       "image": "./assets/images/shaarhanegev.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fec72c28-8706-4ed2-81ef-9d1a28a23345"
+      }
+    },
+    "owner": "guyshlomo"
   }
 }
