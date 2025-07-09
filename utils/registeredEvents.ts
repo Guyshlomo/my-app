@@ -1,4 +1,4 @@
-import { getCurrentUserFromSupabase, getUserVolunteerRegistrations } from '../db/supabaseApi';
+import { getCurrentUserFromSupabase, getUserVolunteerRegistrations } from '../app/db/supabaseApi';
 
 // Get registered event IDs from user's volunteer registrations
 export async function getRegisteredEventIds(): Promise<number[]> {
@@ -10,7 +10,7 @@ export async function getRegisteredEventIds(): Promise<number[]> {
     const registrations = await getUserVolunteerRegistrations(currentUser.id);
     
     // Extract event IDs from registrations
-    const eventIds = registrations.map(reg => parseInt(reg.event_id)).filter(id => !isNaN(id));
+    const eventIds = registrations.map((reg: any) => parseInt(reg.event_id)).filter((id: number) => !isNaN(id));
     
     return eventIds;
   } catch (e) {

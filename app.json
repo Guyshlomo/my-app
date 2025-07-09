@@ -9,7 +9,8 @@
     "userInterfaceStyle": "automatic",
     "description": "A volunteer management and community engagement platform connecting volunteers with local organizations. Minimum age requirement: 17 years.",
     "platforms": [
-      "ios"
+      "ios",
+      "android"
     ],
     "ios": {
       "supportsTablet": true,
@@ -18,7 +19,7 @@
         "2"
       ],
       "bundleIdentifier": "com.voluntree.myapp",
-      "buildNumber": "25",
+      "buildNumber": "27",
       "infoPlist": {
         "UIDeviceFamily": [
           1,
@@ -72,6 +73,15 @@
         "projectId": "fec72c28-8706-4ed2-81ef-9d1a28a23345"
       }
     },
-    "owner": "guyshlomo"
+    "owner": "guyshlomo",
+    "android": {
+      "package": "com.voluntree.myapp",
+      "versionCode": 4,
+      "supportsTablet": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    }
   }
 }

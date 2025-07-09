@@ -1,4 +1,4 @@
-import { cancelVolunteerRegistration, getAllVolunteerEvents, getUserVolunteerRegistrations, registerForVolunteerEvent } from '../db/supabaseApi';
+import { cancelVolunteerRegistration, getAllVolunteerEvents, getUserVolunteerRegistrations, registerForVolunteerEvent } from '../app/db/supabaseApi';
 
 export interface VolunteerEvent {
   id: number;

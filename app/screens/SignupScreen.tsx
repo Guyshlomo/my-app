@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Alert, Dimensions, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { signupWithSupabase } from '../db/supabaseApi';
 
@@ -45,6 +45,7 @@ export default function SignupScreen({ navigation }: any) {
   const [isDatePickerVisible, setDatePickerVisible] = useState(false);
   const [isSettlementModalVisible, setSettlementModalVisible] = useState(false);
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   const handleConfirmDate = (date: Date) => {
     setBirthDate(date);
@@ -133,216 +134,230 @@ export default function SignupScreen({ navigation }: any) {
   };
 
   return (
-    <View style={styles.container}>
-      <TouchableOpacity style={styles.backIcon} onPress={() => navigation.navigate('Login')}>
-        <Text style={{ fontSize: 28, color: '#222' }}>{'←'}</Text>
-      </TouchableOpacity>
-      <Text style={[styles.title, { fontSize: responsiveFontSize(28) }]}>הרשמה</Text>
-      
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={{ flexGrow: 1 }}
+        keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.imagePicker}>
-          <TouchableOpacity
-            style={[styles.profileImage, { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#B7EFC5', backgroundColor: '#f5f5f5' }]}
-            onPress={() => setAvatarModalVisible(true)}
+        <View style={styles.container}>
+          <TouchableOpacity style={styles.backIcon} onPress={() => navigation.navigate('Login')}>
+            <Text style={{ fontSize: 28, color: '#222' }}>{'←'}</Text>
+          </TouchableOpacity>
+          <Text style={[styles.title, { fontSize: responsiveFontSize(28) }]}>הרשמה</Text>
+          
+          <ScrollView 
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
           >
-            {avatarSeed ? (
-              <Image
-                source={{ uri: `https://api.dicebear.com/7.x/${avatarStyle}/png?seed=${avatarSeed}` }}
-                style={[styles.profileImage, { borderWidth: 0 }]}
+            <View style={styles.imagePicker}>
+              <TouchableOpacity
+                style={[styles.profileImage, { alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#B7EFC5', backgroundColor: '#f5f5f5' }]}
+                onPress={() => setAvatarModalVisible(true)}
+              >
+                {avatarSeed ? (
+                  <Image
+                    source={{ uri: `https://api.dicebear.com/7.x/${avatarStyle}/png?seed=${avatarSeed}` }}
+                    style={[styles.profileImage, { borderWidth: 0 }]}
+                  />
+                ) : (
+                  <Text style={{ fontSize: 32, color: '#888' }}>?</Text>
+                )}
+              </TouchableOpacity>
+              <Text style={[styles.avatarLabel, { fontSize: responsiveFontSize(16) }]}>בחר אווטר</Text>
+              <Modal
+                visible={avatarModalVisible}
+                animationType="slide"
+                transparent
+                onRequestClose={() => setAvatarModalVisible(false)}
+              >
+                <Pressable style={styles.avatarModalOverlay} onPress={() => setAvatarModalVisible(false)}>
+                  <View style={styles.avatarModalContent}>
+                    <Text style={[{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }, { fontSize: responsiveFontSize(18) }]}>בחר אווטר</Text>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingVertical: 8 }}>
+                      {avatarSeeds.map((seed, idx) => (
+                        <TouchableOpacity key={seed ?? 'empty'} onPress={() => { setAvatarSeed(seed); setAvatarModalVisible(false); }}>
+                          {seed ? (
+                            <Image
+                              source={{ uri: `https://api.dicebear.com/7.x/${avatarStyle}/png?seed=${seed}` }}
+                              style={[
+                                styles.avatarScrollImage,
+                                { margin: 8, width: 60, height: 60 },
+                                avatarSeed === seed && { borderWidth: 3, borderColor: '#B7EFC5' }
+                              ]}
+                            />
+                          ) : (
+                            <View style={[styles.avatarScrollImage, { margin: 8, width: 60, height: 60, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f5', borderWidth: avatarSeed === null ? 3 : 0, borderColor: '#888' }] }>
+                              <Text style={{ fontSize: 32, color: '#888' }}>?</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                </Pressable>
+              </Modal>
+            </View>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.input, firstName ? styles.inputFilled : null]}
+                placeholder="שם פרטי"
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholderTextColor="#888"
               />
-            ) : (
-              <Text style={{ fontSize: 32, color: '#888' }}>?</Text>
-            )}
-          </TouchableOpacity>
-          <Text style={[styles.avatarLabel, { fontSize: responsiveFontSize(16) }]}>בחר אווטר</Text>
-          <Modal
-            visible={avatarModalVisible}
-            animationType="slide"
-            transparent
-            onRequestClose={() => setAvatarModalVisible(false)}
-          >
-            <Pressable style={styles.avatarModalOverlay} onPress={() => setAvatarModalVisible(false)}>
-              <View style={styles.avatarModalContent}>
-                <Text style={[{ fontSize: 18, fontWeight: 'bold', marginBottom: 12, textAlign: 'center' }, { fontSize: responsiveFontSize(18) }]}>בחר אווטר</Text>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingVertical: 8 }}>
-                  {avatarSeeds.map((seed, idx) => (
-                    <TouchableOpacity key={seed ?? 'empty'} onPress={() => { setAvatarSeed(seed); setAvatarModalVisible(false); }}>
-                      {seed ? (
-                        <Image
-                          source={{ uri: `https://api.dicebear.com/7.x/${avatarStyle}/png?seed=${seed}` }}
-                          style={[
-                            styles.avatarScrollImage,
-                            { margin: 8, width: 60, height: 60 },
-                            avatarSeed === seed && { borderWidth: 3, borderColor: '#B7EFC5' }
-                          ]}
-                        />
-                      ) : (
-                        <View style={[styles.avatarScrollImage, { margin: 8, width: 60, height: 60, alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f5', borderWidth: avatarSeed === null ? 3 : 0, borderColor: '#888' }] }>
-                          <Text style={{ fontSize: 32, color: '#888' }}>?</Text>
-                        </View>
-                      )}
+              <Text style={styles.requiredStar}>*</Text>
+            </View>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.input, lastName ? styles.inputFilled : null]}
+                placeholder="שם משפחה"
+                value={lastName}
+                onChangeText={setLastName}
+                placeholderTextColor="#888"
+              />
+              <Text style={styles.requiredStar}>*</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.input, settlement ? styles.inputFilled : null]}
+              onPress={() => setSettlementModalVisible(true)}
+            >
+              <View style={styles.settlementPickerContent}>
+                <Text style={styles.settlementText}>
+                  {settlement || 'בחר ישוב (אופציונלי)'}
+                </Text>
+                <Text style={styles.dropdownIcon}>▼</Text>
+              </View>
+            </TouchableOpacity>
+            
+            <View style={styles.sectionSpacer} />
+            
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.input, email ? styles.inputFilled : null]}
+                placeholder="אימייל"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#888"
+              />
+              <Text style={styles.requiredStar}>*</Text>
+            </View>
+            
+            {/* אפשרות הסתרת מייל */}
+            <View style={styles.emailVisibilityContainer}>
+              <TouchableOpacity 
+                style={styles.checkboxContainer}
+                onPress={() => setShowEmail(!showEmail)}
+              >
+                <View style={[styles.checkbox, showEmail && styles.checkboxChecked]}>
+                  {showEmail && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.checkboxLabel}>
+                  הצג כתובת מייל למשתמשים אחרים
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.input, password ? styles.inputFilled : null]}
+                placeholder="סיסמה"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                placeholderTextColor="#888"
+                onFocus={() => scrollViewRef.current?.scrollTo({ y: 200, animated: true })}
+              />
+              <Text style={styles.requiredStar}>*</Text>
+            </View>
+            <View style={styles.inputContainer}>
+              <TextInput
+                style={[styles.input, confirmPassword ? styles.inputFilled : null]}
+                placeholder="אימות סיסמה"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+                placeholderTextColor="#888"
+                onFocus={() => scrollViewRef.current?.scrollTo({ y: 300, animated: true })}
+              />
+              <Text style={styles.requiredStar}>*</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.datePickerButton, birthDate ? styles.inputFilled : null]}
+              onPress={() => setDatePickerVisible(true)}
+            >
+              <View style={styles.iconContainer}>
+                <Text style={styles.calendarIcon}>📅</Text>
+              </View>
+              <View style={styles.textContainer}>
+                <Text style={[styles.datePickerText, !birthDate && styles.placeholderText]}>
+                  {birthDate ? birthDate.toLocaleDateString('he-IL') : 'תאריך לידה (אופציונלי)'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            <DateTimePickerModal
+              isVisible={isDatePickerVisible}
+              mode="date"
+              onConfirm={handleConfirmDate}
+              onCancel={handleCancelDate}
+              maximumDate={new Date()}
+              display="spinner"
+            />
+
+            <Modal
+              animationType="slide"
+              transparent={true}
+              visible={isSettlementModalVisible}
+              onRequestClose={() => setSettlementModalVisible(false)}
+            >
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContent}>
+                  <View style={styles.modalHeader}>
+                    <Text style={styles.modalTitle}>בחר ישוב</Text>
+                    <TouchableOpacity 
+                      style={styles.closeButton}
+                      onPress={() => setSettlementModalVisible(false)}
+                    >
+                      <Text style={styles.closeButtonText}>✕</Text>
                     </TouchableOpacity>
-                  ))}
-                </ScrollView>
+                  </View>
+                  <ScrollView style={styles.settlementList}>
+                    {SETTLEMENTS.map((item) => (
+                      <TouchableOpacity
+                        key={item}
+                        style={[
+                          styles.settlementItem,
+                          settlement === item && styles.selectedSettlement
+                        ]}
+                        onPress={() => handleSettlementSelect(item)}
+                      >
+                        <Text style={[
+                          styles.settlementItemText,
+                          settlement === item && styles.selectedSettlementText
+                        ]}>
+                          {item}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
               </View>
-            </Pressable>
-          </Modal>
-        </View>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, firstName ? styles.inputFilled : null]}
-            placeholder="שם פרטי"
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholderTextColor="#888"
-          />
-          <Text style={styles.requiredStar}>*</Text>
-        </View>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, lastName ? styles.inputFilled : null]}
-            placeholder="שם משפחה"
-            value={lastName}
-            onChangeText={setLastName}
-            placeholderTextColor="#888"
-          />
-          <Text style={styles.requiredStar}>*</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.input, settlement ? styles.inputFilled : null]}
-          onPress={() => setSettlementModalVisible(true)}
-        >
-          <View style={styles.settlementPickerContent}>
-            <Text style={styles.settlementText}>
-              {settlement || 'בחר ישוב (אופציונלי)'}
-            </Text>
-            <Text style={styles.dropdownIcon}>▼</Text>
-          </View>
-        </TouchableOpacity>
-        
-        <View style={styles.sectionSpacer} />
-        
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, email ? styles.inputFilled : null]}
-            placeholder="אימייל"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            placeholderTextColor="#888"
-          />
-          <Text style={styles.requiredStar}>*</Text>
-        </View>
-        
-        {/* אפשרות הסתרת מייל */}
-        <View style={styles.emailVisibilityContainer}>
-          <TouchableOpacity 
-            style={styles.checkboxContainer}
-            onPress={() => setShowEmail(!showEmail)}
-          >
-            <View style={[styles.checkbox, showEmail && styles.checkboxChecked]}>
-              {showEmail && <Text style={styles.checkmark}>✓</Text>}
-            </View>
-            <Text style={styles.checkboxLabel}>
-              הצג כתובת מייל למשתמשים אחרים
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, password ? styles.inputFilled : null]}
-            placeholder="סיסמה"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholderTextColor="#888"
-          />
-          <Text style={styles.requiredStar}>*</Text>
-        </View>
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={[styles.input, confirmPassword ? styles.inputFilled : null]}
-            placeholder="אימות סיסמה"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            secureTextEntry
-            placeholderTextColor="#888"
-          />
-          <Text style={styles.requiredStar}>*</Text>
-        </View>
-        <TouchableOpacity
-          style={[styles.datePickerButton, birthDate ? styles.inputFilled : null]}
-          onPress={() => setDatePickerVisible(true)}
-        >
-          <View style={styles.iconContainer}>
-            <Text style={styles.calendarIcon}>📅</Text>
-          </View>
-          <View style={styles.textContainer}>
-            <Text style={[styles.datePickerText, !birthDate && styles.placeholderText]}>
-              {birthDate ? birthDate.toLocaleDateString('he-IL') : 'תאריך לידה (אופציונלי)'}
-            </Text>
-          </View>
-        </TouchableOpacity>
+            </Modal>
 
-        <DateTimePickerModal
-          isVisible={isDatePickerVisible}
-          mode="date"
-          onConfirm={handleConfirmDate}
-          onCancel={handleCancelDate}
-          maximumDate={new Date()}
-          display="spinner"
-        />
-
-        <Modal
-          animationType="slide"
-          transparent={true}
-          visible={isSettlementModalVisible}
-          onRequestClose={() => setSettlementModalVisible(false)}
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>בחר ישוב</Text>
-                <TouchableOpacity 
-                  style={styles.closeButton}
-                  onPress={() => setSettlementModalVisible(false)}
-                >
-                  <Text style={styles.closeButtonText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-              <ScrollView style={styles.settlementList}>
-                {SETTLEMENTS.map((item) => (
-                  <TouchableOpacity
-                    key={item}
-                    style={[
-                      styles.settlementItem,
-                      settlement === item && styles.selectedSettlement
-                    ]}
-                    onPress={() => handleSettlementSelect(item)}
-                  >
-                    <Text style={[
-                      styles.settlementItemText,
-                      settlement === item && styles.selectedSettlementText
-                    ]}>
-                      {item}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
-          <Text style={[styles.signupText, { fontSize: responsiveFontSize(16) }]}>הרשמה</Text>
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.signupButton} onPress={handleSignup}>
+              <Text style={[styles.signupText, { fontSize: responsiveFontSize(16) }]}>הרשמה</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </View>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
