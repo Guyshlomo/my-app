@@ -38,8 +38,36 @@
             }
           }
         },
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "voluntree-oauth",
+            "CFBundleURLSchemes": ["voluntree"]
+          }
+        ],
+        "UIBackgroundModes": ["remote-notification"]
       }
+    },
+    "android": {
+      "package": "com.voluntree.myapp",
+      "versionCode": 4,
+      "supportsTablet": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "voluntree"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -55,6 +83,14 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#ffffff",
+          "defaultChannel": "volunteer-events"
         }
       ],
       "expo-web-browser"
@@ -73,15 +109,6 @@
         "projectId": "fec72c28-8706-4ed2-81ef-9d1a28a23345"
       }
     },
-    "owner": "guyshlomo",
-    "android": {
-      "package": "com.voluntree.myapp",
-      "versionCode": 4,
-      "supportsTablet": true,
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      }
-    }
+    "owner": "guyshlomo"
   }
 }

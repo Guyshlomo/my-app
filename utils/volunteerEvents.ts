@@ -1,4 +1,4 @@
-import { cancelVolunteerRegistration, getAllVolunteerEvents, getUserVolunteerRegistrations, registerForVolunteerEvent } from '../app/db/supabaseApi';
+import { cancelVolunteerRegistration, getAllVolunteerEvents, getUserVolunteerRegistrations, getVolunteerEventsForUser, registerForVolunteerEvent } from '../app/db/supabaseApi';
 
 export interface VolunteerEvent {
   id: number;
@@ -121,6 +121,18 @@ export const volunteerEventsManager = {
       return events;
     } catch (error) {
       console.error('Error getting volunteer events:', error);
+      return [];
+    }
+  },
+
+  // קבלת אירועי התנדבות מסוננים לפי ישוב המשתמש
+  async getEventsForUser(userSettlement?: string): Promise<any[]> {
+    try {
+      console.log('🏘️ טוען אירועי התנדבות מסוננים לפי ישוב:', userSettlement);
+      const events = await getVolunteerEventsForUser(userSettlement);
+      return events;
+    } catch (error) {
+      console.error('Error getting filtered volunteer events:', error);
       return [];
     }
   },

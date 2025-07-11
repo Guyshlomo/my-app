@@ -2,6 +2,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import React from 'react';
 import AdminUsersScreen from './screens/AdminUsersScreen';
 import CalendarScreen from './screens/CalendarScreen';
+import EditEventScreen from './screens/EditEventScreen';
 import GiftScreen from './screens/GiftScreen';
 import HomeScreen from './screens/HomeScreen';
 import LoginScreen from './screens/LoginScreen';
@@ -24,6 +25,7 @@ export type RootStackParamList = {
   PurchaseHistory: undefined;
   LuckyWheel: undefined;
   AdminUsers: undefined;
+  EditEvent: { eventId: string; eventData: any };
 };
 
 function MainNavigator() {
@@ -63,6 +65,14 @@ function MainNavigator() {
         component={AdminUsersScreen}
         options={{
           title: 'ניהול משתמשים',
+          headerTitleAlign: 'center',
+        }}
+      />
+      <Stack.Screen 
+        name="EditEvent" 
+        component={EditEventScreen}
+        options={{
+          title: 'עריכת אירוע',
           headerTitleAlign: 'center',
         }}
       />

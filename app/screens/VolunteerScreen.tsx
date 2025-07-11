@@ -19,7 +19,7 @@ import { Alert, Animated, Dimensions, Image, Platform, RefreshControl, SafeAreaV
 import type { RootStackParamList } from '../MainNavigator';
 import { cancelVolunteerRegistration, completeVolunteerEvent, deleteVolunteerEvent, getCurrentUserFromSupabase, getEventRegistrations, registerForVolunteerEvent } from '../db/supabaseApi';
 import type { User, VolunteerEvent, VolunteerRegistration } from '../types/types';
-import { addEventDeletedListener, emitEventDeleted, removeEventDeletedListener } from '../utils/eventEmitter';
+import { addEventDeletedListener, addEventUpdatedListener, emitEventDeleted, removeEventDeletedListener, removeEventUpdatedListener } from '../utils/eventEmitter';
 import { volunteerEventsManager } from '../utils/volunteerEvents';
 
 type NavigationProp = StackNavigationProp<RootStackParamList>;
@@ -219,10 +219,13 @@ function VolunteerScreen() {
       if (user) {
         setCurrentUser(user);
         
-        // Use volunteer events manager for data loading
+        // Use volunteer events manager for data loading with settlement filtering
         try {
-          const events = await volunteerEventsManager.getAllEvents();
-          console.log('✅ אירועי התנדבות נטענו:', { eventsCount: events.length });
+          const events = await volunteerEventsManager.getEventsForUser(user.settlement);
+          console.log('✅ אירועי התנדבות נטענו עבור ישוב:', { 
+            settlement: user.settlement, 
+            eventsCount: events.length 
+          });
           setEvents(events);
           
           const registrations = await volunteerEventsManager.getUserRegistrations(user.id);
@@ -268,6 +271,21 @@ function VolunteerScreen() {
     // ניקוי המאזין כשהקומפוננטה מתפרקת
     return () => {
       removeEventDeletedListener(eventDeletedHandler);
+    };
+  }, []);
+
+  // הוספת מאזין לעדכון אירועים - רק פעם אחת
+  useEffect(() => {
+    const eventUpdatedHandler = () => {
+      console.log('🔔 [VolunteerScreen] Received event update notification - refreshing data');
+      loadData(); // רענון ללא לואדר
+    };
+
+    addEventUpdatedListener(eventUpdatedHandler);
+
+    // ניקוי המאזין כשהקומפוננטה מתפרקת
+    return () => {
+      removeEventUpdatedListener(eventUpdatedHandler);
     };
   }, []);
 
@@ -670,7 +688,10 @@ function VolunteerScreen() {
                           
                           <TouchableOpacity 
                             style={styles.editButton} 
-                            onPress={() => navigation.navigate('AdminUsers' as any)}
+                            onPress={() => navigation.navigate('EditEvent' as any, { 
+                              eventId: event.id, 
+                              eventData: event 
+                            })}
                           >
                             <MaterialIcons name="edit" size={20} color="#fff" style={{ marginLeft: 6 }} />
                             <Text style={styles.editButtonText}>ערוך</Text>

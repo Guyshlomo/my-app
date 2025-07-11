@@ -1,10 +1,12 @@
 type Listener = (coins: number) => void;
 type EventDeletedListener = () => void;
+type EventUpdatedListener = () => void;
 type TasksCompletedListener = (userId: string, tasksCompleted: number) => void;
 
 class EventEmitter {
   private listeners: { [key: string]: Listener[] } = {};
   private eventDeletedListeners: EventDeletedListener[] = [];
+  private eventUpdatedListeners: EventUpdatedListener[] = [];
   private tasksCompletedListeners: TasksCompletedListener[] = [];
 
   emit(event: string, data: number) {
@@ -14,6 +16,10 @@ class EventEmitter {
 
   emitEventDeleted() {
     this.eventDeletedListeners.forEach(listener => listener());
+  }
+
+  emitEventUpdated() {
+    this.eventUpdatedListeners.forEach(listener => listener());
   }
 
   emitTasksCompletedUpdate(userId: string, tasksCompleted: number) {
@@ -36,6 +42,10 @@ class EventEmitter {
     this.eventDeletedListeners.push(callback);
   }
 
+  addEventUpdatedListener(callback: EventUpdatedListener) {
+    this.eventUpdatedListeners.push(callback);
+  }
+
   addTasksCompletedListener(callback: TasksCompletedListener) {
     this.tasksCompletedListeners.push(callback);
   }
@@ -49,6 +59,12 @@ class EventEmitter {
 
   removeEventDeletedListener(callback: EventDeletedListener) {
     this.eventDeletedListeners = this.eventDeletedListeners.filter(
+      listener => listener !== callback
+    );
+  }
+
+  removeEventUpdatedListener(callback: EventUpdatedListener) {
+    this.eventUpdatedListeners = this.eventUpdatedListeners.filter(
       listener => listener !== callback
     );
   }
@@ -87,6 +103,19 @@ export const addEventDeletedListener = (callback: () => void) => {
 
 export const removeEventDeletedListener = (callback: () => void) => {
   eventEmitter.removeEventDeletedListener(callback);
+};
+
+// Event updated notifications
+export const emitEventUpdated = () => {
+  eventEmitter.emitEventUpdated();
+};
+
+export const addEventUpdatedListener = (callback: () => void) => {
+  eventEmitter.addEventUpdatedListener(callback);
+};
+
+export const removeEventUpdatedListener = (callback: () => void) => {
+  eventEmitter.removeEventUpdatedListener(callback);
 };
 
 // Tasks completed update notifications

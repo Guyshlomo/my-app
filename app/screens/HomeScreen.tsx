@@ -30,7 +30,7 @@ import {
 } from '../db/supabaseApi';
 import type { VolunteerEvent, VolunteerRegistration } from '../types/types';
 import { User } from '../types/types';
-import { addCoinsUpdateListener, addEventDeletedListener, addTasksCompletedListener, emitCoinsUpdate, emitEventDeleted, emitTasksCompletedUpdate, removeCoinsUpdateListener, removeEventDeletedListener, removeTasksCompletedListener } from '../utils/eventEmitter';
+import { addCoinsUpdateListener, addEventDeletedListener, addEventUpdatedListener, addTasksCompletedListener, emitCoinsUpdate, emitEventDeleted, emitTasksCompletedUpdate, removeCoinsUpdateListener, removeEventDeletedListener, removeEventUpdatedListener, removeTasksCompletedListener } from '../utils/eventEmitter';
 import { volunteerEventsManager } from '../utils/volunteerEvents';
 import SettingsScreen from './SettingsScreen';
 
@@ -416,217 +416,179 @@ export default function HomeScreen() {
 
   // Handle individual participant decision
   const handleParticipantDecision = async (userId: string, decision: 'approved' | 'rejected') => {
-    // Update the UI state first
-    setParticipantDecisions(prev => ({
-      ...prev,
-      [userId]: decision
-    }));
-
     if (!selectedEventForParticipants) return;
 
-    try {
-      // Get user data first
-      const user = await getUserById(userId);
-      if (!user) {
-        console.error('User not found:', userId);
-        return;
-      }
-
-      // Remove user from the participant list immediately
-      setEventParticipants(prev => prev.filter(p => p.user_id !== userId));
-
-      if (decision === 'approved') {
-        console.log('✅ Approving user:', userId, 'for event:', selectedEventForParticipants.title);
-        
-        // Calculate new values
-        const coinsReward = selectedEventForParticipants.coins_reward || 50;
-        const newCoins = (user.coins || 0) + coinsReward;
-        const currentTasks = user.tasksCompleted || 0;
-        const newTasksCompleted = currentTasks + 1;
-
-        console.log('📊 [HomeScreen] About to update user:', {
-          userId,
-          currentCoins: user.coins,
-          coinsReward,
-          newCoins,
-          currentTasks,
-          newTasksCompleted,
-          userObject: user
-        });
-
-        // Update user in database using proper function
-        try {
-          console.log('🔄 [HomeScreen] Updating database with:', { 
-            coins: newCoins,
-            taskcompleted: newTasksCompleted
-          });
-          
-          await updateUserInSupabase(userId, { 
-            coins: newCoins,
-            taskcompleted: newTasksCompleted
-          });
-          
-          console.log('✅ [HomeScreen] User update completed successfully');
-          
-          // Verify the update by reading back from database
-          const updatedUser = await getUserById(userId);
-          console.log('🔍 [HomeScreen] Verification - Updated user from DB:', {
-            coins: updatedUser?.coins,
-            tasksCompleted: updatedUser?.tasksCompleted
-          });
-          
-        } catch (error) {
-          console.error('❌ [HomeScreen] Error updating user:', error);
-          Alert.alert('שגיאה', 'לא ניתן לעדכן את נתוני המשתמש');
-          return;
-        }
-
-        // Note: Registration status update is now handled by the backend API
-
-        console.log('✅ User updated successfully:', { userId, newCoins, newTasksCompleted });
-
-        // Emit events to update all screens immediately
-        console.log('🔔 [HomeScreen] Emitting updates:');
-        console.log('   - User ID:', userId);
-        console.log('   - New Coins:', newCoins);
-        console.log('   - New TasksCompleted:', newTasksCompleted);
-        
-        emitCoinsUpdate(newCoins);
-        emitTasksCompletedUpdate(userId, newTasksCompleted);
-        
-        console.log('✅ [HomeScreen] Events emitted successfully');
-        
-        // Force immediate data refresh to ensure UI shows updated values
-        setTimeout(async () => {
-          console.log('🔄 [HomeScreen] Forcing data refresh after user update');
-          await loadAdminData();
-        }, 100);
-
-        // Show success message
-        Alert.alert(
-          'אושר בהצלחה!', 
-          `${user.firstName} ${user.lastName} קיבל ${coinsReward} מטבעות ו-1 משימה שהושלמה`
-        );
-      } else {
-        console.log('❌ Rejecting user:', userId, 'for event:', selectedEventForParticipants.title);
-        
-        // Note: Registration status update is now handled by the backend API
-
-        // Show rejection message
-        Alert.alert('נדחה', `${user.firstName} ${user.lastName} נדחה מההתנדבות`);
-      }
-
-      // Force immediate refresh
-      setTimeout(async () => {
-        await loadAdminData();
-        emitEventDeleted(); // Always notify other screens
-      }, 300);
-
-      // Force immediate refresh with multiple attempts
-      console.log('🔄 Starting aggressive refresh sequence...');
-      
-      // First immediate refresh
-      setTimeout(async () => {
-        console.log('🔄 Refresh attempt 1...');
-        await loadAdminData();
-        emitEventDeleted(); // Always notify other screens
-      }, 200);
-      
-      // Second refresh for safety
-      setTimeout(async () => {
-        console.log('🔄 Refresh attempt 2...');
-        await loadAdminData();
-        emitEventDeleted(); // Always notify other screens
-      }, 800);
-      
-      // Third refresh for extra safety
-      setTimeout(async () => {
-        console.log('🔄 Refresh attempt 3...');
-        await loadAdminData();
-        emitEventDeleted(); // Always notify other screens
-      }, 1500);
-
-      // Force immediate and aggressive refresh
-      console.log('🔄 Starting aggressive refresh sequence...');
-      
-      // Immediate refresh
-      await loadAdminData();
-      emitEventDeleted();
-      
-      // Additional refreshes with delays
-      setTimeout(async () => {
-        console.log('🔄 Refresh attempt 1...');
-        await loadAdminData();
-        emitEventDeleted();
-        // Force re-render by updating state
-        setAdminEvents([]);
-        setTimeout(async () => {
-          await loadAdminData();
-        }, 100);
-      }, 300);
-      
-      // Final refresh
-      setTimeout(async () => {
-        console.log('🔄 Final refresh attempt...');
-        await loadAdminData();
-        emitEventDeleted();
-      }, 1000);
-
-      // Check if this was the last participant
-      const remainingParticipants = eventParticipants.filter(p => p.user_id !== userId);
-      if (remainingParticipants.length === 0) {
-        try {
-          // Delete the volunteer event from database
-          console.log('🗑️ Attempting to delete event:', selectedEventForParticipants.id);
-          
-          try {
-            // Try hard delete first (more reliable)
-            await deleteVolunteerEvent(selectedEventForParticipants.id);
-            console.log('✅ Event deleted successfully');
-          } catch (deleteError) {
-            console.log('⚠️ Hard delete failed, trying soft delete...');
-            await deactivateVolunteerEvent(selectedEventForParticipants.id);
-            console.log('✅ Event deactivated successfully');
-          }
-          
-          // Close the list 
-          setShowParticipantsList(false);
-          setSelectedEventForParticipants(null);
-          setEventParticipants([]);
-          setParticipantDecisions({});
-          
-          Alert.alert('הושלם', 'כל המשתתפים טופלו וההתנדבות הוסרה מהמערכת');
-        } catch (deleteError: any) {
-          console.error('❌ Error deleting event:', deleteError);
-          Alert.alert(
-            'שגיאה במחיקת ההתנדבות', 
-            `לא ניתן למחוק את ההתנדבות: ${deleteError.message || 'שגיאה לא ידועה'}`
-          );
-          
-          // Still close the list
-          setShowParticipantsList(false);
-          setSelectedEventForParticipants(null);
-          setEventParticipants([]);
-          setParticipantDecisions({});
-        }
-      }
-
-    } catch (error: any) {
-      console.error('❌ Error processing participant decision:', error);
-      Alert.alert('שגיאה', 'לא ניתן לעבד את ההחלטה');
-      
-      // Revert the UI state on error
-      setParticipantDecisions(prev => ({
-        ...prev,
-        [userId]: null
-      }));
-      
-      // Re-add the user to the list on error
-      const originalParticipant = eventParticipants.find(p => p.user_id === userId);
-      if (originalParticipant) {
-        setEventParticipants(prev => [...prev, originalParticipant]);
-      }
+    // Get user data for confirmation message
+    const user = await getUserById(userId);
+    if (!user) {
+      console.error('User not found:', userId);
+      return;
     }
+
+    const actionText = decision === 'approved' ? 'לאשר' : 'לדחות';
+    const confirmText = decision === 'approved' ? 'אשר' : 'דחה';
+    
+    Alert.alert(
+      'האם אתה בטוח בפעולה?',
+      `האם אתה בטוח שברצונך ${actionText} את ${user.firstName} ${user.lastName}?`,
+      [
+        { text: 'ביטול', style: 'cancel' },
+        {
+          text: confirmText,
+          style: decision === 'approved' ? 'default' : 'destructive',
+          onPress: async () => {
+            // Update the UI state first
+            setParticipantDecisions(prev => ({
+              ...prev,
+              [userId]: decision
+            }));
+
+            try {
+              // Remove user from the participant list immediately
+              setEventParticipants(prev => prev.filter(p => p.user_id !== userId));
+
+              if (decision === 'approved') {
+                console.log('✅ Approving user:', userId, 'for event:', selectedEventForParticipants.title);
+                
+                // Calculate new values
+                const coinsReward = selectedEventForParticipants.coins_reward || 50;
+                const newCoins = (user.coins || 0) + coinsReward;
+                const currentTasks = user.tasksCompleted || 0;
+                const newTasksCompleted = currentTasks + 1;
+
+                console.log('📊 [HomeScreen] About to update user:', {
+                  userId,
+                  currentCoins: user.coins,
+                  coinsReward,
+                  newCoins,
+                  currentTasks,
+                  newTasksCompleted,
+                  userObject: user
+                });
+
+                // Update user in database using proper function
+                try {
+                  console.log('🔄 [HomeScreen] Updating database with:', { 
+                    coins: newCoins,
+                    taskcompleted: newTasksCompleted
+                  });
+                  
+                  await updateUserInSupabase(userId, { 
+                    coins: newCoins,
+                    taskcompleted: newTasksCompleted
+                  });
+                  
+                  console.log('✅ [HomeScreen] User update completed successfully');
+                  
+                  // Verify the update by reading back from database
+                  const updatedUser = await getUserById(userId);
+                  console.log('🔍 [HomeScreen] Verification - Updated user from DB:', {
+                    coins: updatedUser?.coins,
+                    tasksCompleted: updatedUser?.tasksCompleted
+                  });
+                  
+                } catch (error) {
+                  console.error('❌ [HomeScreen] Error updating user:', error);
+                  Alert.alert('שגיאה', 'לא ניתן לעדכן את נתוני המשתמש');
+                  return;
+                }
+
+                console.log('✅ User updated successfully:', { userId, newCoins, newTasksCompleted });
+
+                // Emit events to update all screens immediately
+                console.log('🔔 [HomeScreen] Emitting updates:');
+                console.log('   - User ID:', userId);
+                console.log('   - New Coins:', newCoins);
+                console.log('   - New TasksCompleted:', newTasksCompleted);
+                
+                emitCoinsUpdate(newCoins);
+                emitTasksCompletedUpdate(userId, newTasksCompleted);
+                
+                console.log('✅ [HomeScreen] Events emitted successfully');
+                
+                // Force immediate data refresh to ensure UI shows updated values
+                setTimeout(async () => {
+                  console.log('🔄 [HomeScreen] Forcing data refresh after user update');
+                  await loadAdminData();
+                }, 100);
+
+                // Show success message
+                Alert.alert(
+                  'אושר בהצלחה!', 
+                  `${user.firstName} ${user.lastName} קיבל ${coinsReward} מטבעות ו-1 משימה שהושלמה`
+                );
+              } else {
+                console.log('❌ Rejecting user:', userId, 'for event:', selectedEventForParticipants.title);
+                
+                // Show rejection message
+                Alert.alert('נדחה', `${user.firstName} ${user.lastName} נדחה מההתנדבות`);
+              }
+
+              // Force immediate refresh
+              setTimeout(async () => {
+                await loadAdminData();
+                emitEventDeleted(); // Always notify other screens
+              }, 300);
+
+              // Check if this was the last participant
+              const remainingParticipants = eventParticipants.filter(p => p.user_id !== userId);
+              if (remainingParticipants.length === 0) {
+                try {
+                  // Delete the volunteer event from database
+                  console.log('🗑️ Attempting to delete event:', selectedEventForParticipants.id);
+                  
+                  try {
+                    // Try hard delete first (more reliable)
+                    await deleteVolunteerEvent(selectedEventForParticipants.id);
+                    console.log('✅ Event deleted successfully');
+                  } catch (deleteError) {
+                    console.log('⚠️ Hard delete failed, trying soft delete...');
+                    await deactivateVolunteerEvent(selectedEventForParticipants.id);
+                    console.log('✅ Event deactivated successfully');
+                  }
+                  
+                  // Close the list 
+                  setShowParticipantsList(false);
+                  setSelectedEventForParticipants(null);
+                  setEventParticipants([]);
+                  setParticipantDecisions({});
+                  
+                  Alert.alert('הושלם', 'כל המשתתפים טופלו וההתנדבות הוסרה מהמערכת');
+                } catch (deleteError: any) {
+                  console.error('❌ Error deleting event:', deleteError);
+                  Alert.alert(
+                    'שגיאה במחיקת ההתנדבות', 
+                    `לא ניתן למחוק את ההתנדבות: ${deleteError.message || 'שגיאה לא ידועה'}`
+                  );
+                  
+                  // Still close the list
+                  setShowParticipantsList(false);
+                  setSelectedEventForParticipants(null);
+                  setEventParticipants([]);
+                  setParticipantDecisions({});
+                }
+              }
+
+            } catch (error: any) {
+              console.error('❌ Error processing participant decision:', error);
+              Alert.alert('שגיאה', 'לא ניתן לעבד את ההחלטה');
+              
+              // Revert the UI state on error
+              setParticipantDecisions(prev => ({
+                ...prev,
+                [userId]: null
+              }));
+              
+              // Re-add the user to the list on error
+              const originalParticipant = eventParticipants.find(p => p.user_id === userId);
+              if (originalParticipant) {
+                setEventParticipants(prev => [...prev, originalParticipant]);
+              }
+            }
+          }
+        }
+      ]
+    )
   };
 
   // Handle rejections and close the list
@@ -1196,6 +1158,28 @@ export default function HomeScreen() {
     return () => rotateAnimation.stop();
   }, []);
 
+  // הוספת מאזין למחיקת אירועים - רק פעם אחת
+  useEffect(() => {
+    const eventDeletedHandler = () => {
+      console.log('🔔 [HomeScreen] Received event deletion notification - refreshing data');
+      loadUserData(true); // רענון עם force refresh
+    };
+
+    const eventUpdatedHandler = () => {
+      console.log('🔔 [HomeScreen] Received event update notification - refreshing data');
+      loadUserData(true); // רענון עם force refresh
+    };
+
+    addEventDeletedListener(eventDeletedHandler);
+    addEventUpdatedListener(eventUpdatedHandler);
+
+    // ניקוי המאזינים כשהקומפוננטה מתפרקת
+    return () => {
+      removeEventDeletedListener(eventDeletedHandler);
+      removeEventUpdatedListener(eventUpdatedHandler);
+    };
+  }, []);
+
   // Loading screen while determining user type - only show if no cached user data
   if (isLoadingUser && !currentUser) {
     return (
@@ -1409,7 +1393,10 @@ export default function HomeScreen() {
                   
                   <TouchableOpacity
                     style={styles.adminEditButton}
-                    onPress={() => navigation.navigate('AdminUsers' as any)}
+                    onPress={() => navigation.navigate('EditEvent' as any, { 
+                      eventId: event.id, 
+                      eventData: event 
+                    })}
                   >
                     <Text style={styles.adminEditButtonText}>✏️ ערוך</Text>
                   </TouchableOpacity>

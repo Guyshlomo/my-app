@@ -41,6 +41,16 @@ export default function AdminUsersScreen({ navigation, route }: any) {
     image_url: ''
   });
 
+  // Recurring event state
+  const [recurringType, setRecurringType] = useState<'none' | 'weekly'>('none');
+  const [recurringCount, setRecurringCount] = useState(1);
+
+  // Recurring options
+  const recurringOptions = [
+    { value: 'none', label: 'חד פעמי', icon: '📅' },
+    { value: 'weekly', label: 'שבועי', icon: '🔄' },
+  ];
+
   // Predefined templates for quick event creation
   const eventTemplates = [
     {
@@ -162,6 +172,36 @@ export default function AdminUsersScreen({ navigation, route }: any) {
 
   // Removed handleToggleAdmin - admin cannot manage other users
 
+  // Create recurring events
+  const createRecurringEvents = async (baseEventData: any, recurringType: string, count: number) => {
+    const events = [];
+    const baseDate = new Date(baseEventData.date);
+    
+    for (let i = 0; i < count; i++) {
+      const eventDate = new Date(baseDate);
+      
+      // Calculate date based on recurring type
+      switch (recurringType) {
+        case 'weekly':
+          eventDate.setDate(baseDate.getDate() + (i * 7));
+          break;
+        default:
+          // 'none' - only create one event
+          if (i > 0) continue;
+      }
+      
+      const eventData = {
+        ...baseEventData,
+        date: eventDate.toISOString().split('T')[0],
+        title: count > 1 ? `${baseEventData.title} (${i + 1}/${count})` : baseEventData.title,
+      };
+      
+      events.push(eventData);
+    }
+    
+    return events;
+  };
+
   const handleCreateEvent = async () => {
     if (!newEvent.title || !newEvent.location || !newEvent.date || !newEvent.time || !newEvent.coins_reward) {
       Alert.alert('שגיאה', 'נא למלא את כל השדות הנדרשים');
@@ -199,7 +239,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
         return;
       }
 
-      const eventData = {
+      const baseEventData = {
         ...newEvent,
         date: formattedDate,
         created_by: currentUser?.id || '',
@@ -208,7 +248,16 @@ export default function AdminUsersScreen({ navigation, route }: any) {
         coins_reward: newEvent.coins_reward || 50
       };
 
-      await createVolunteerEvent(eventData);
+      // Create recurring events
+      const eventsToCreate = await createRecurringEvents(baseEventData, recurringType, recurringCount);
+      
+      console.log(`🔄 Creating ${eventsToCreate.length} events (${recurringType})`);
+      
+      // Create all events
+      for (const eventData of eventsToCreate) {
+        await createVolunteerEvent(eventData);
+      }
+
       setShowCreateModal(false);
       setNewEvent({
         title: '',
@@ -220,8 +269,16 @@ export default function AdminUsersScreen({ navigation, route }: any) {
         coins_reward: 5,
         image_url: ''
       });
+      setRecurringType('none');
+      setRecurringCount(1);
+      
       await loadData();
-      Alert.alert('הצלחה', 'התנדבות נוצרה בהצלחה');
+      
+      const successMessage = eventsToCreate.length > 1 
+        ? `${eventsToCreate.length} אירועים חוזרים נוצרו בהצלחה`
+        : 'התנדבות נוצרה בהצלחה';
+      
+      Alert.alert('הצלחה', successMessage);
     } catch (error) {
       console.error('Error creating event:', error);
       Alert.alert('שגיאה', 'לא ניתן ליצור התנדבות');
@@ -294,10 +351,13 @@ export default function AdminUsersScreen({ navigation, route }: any) {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
+    // Use admin's settlement as location for better notification targeting
+    const templateLocation = currentUser?.settlement || template.location;
+    
     setNewEvent({
       title: template.title,
       description: template.description,
-      location: template.location,
+      location: templateLocation, // Use admin's settlement
       date: tomorrow.toISOString().split('T')[0],
       time: '09:00',
       max_participants: template.max_participants,
@@ -612,8 +672,37 @@ export default function AdminUsersScreen({ navigation, route }: any) {
               </View>
             </View>
 
-
-
+            {/* Recurring Event Section */}
+            <View style={styles.formSection}>
+              <Text style={styles.inputLabel}>התנדבות חוזרת</Text>
+              <View style={styles.recurringOptionsBar}>
+                {recurringOptions.map((option) => (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[
+                      styles.recurringOptionButton,
+                      recurringType === option.value && styles.recurringOptionButtonActive
+                    ]}
+                    onPress={() => setRecurringType(option.value as 'none' | 'weekly')}
+                  >
+                    <Text style={styles.recurringOptionIcon}>{option.icon}</Text>
+                    <Text style={styles.recurringOptionText}>{option.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {recurringType !== 'none' && (
+                <View style={styles.recurringCountBar}>
+                  <Text style={styles.recurringCountLabel}>כמות חוזרות: </Text>
+                  <TextInput
+                    style={styles.recurringCountInput}
+                    value={recurringCount.toString()}
+                    onChangeText={(text) => setRecurringCount(parseInt(text) || 1)}
+                    keyboardType="numeric"
+                    returnKeyType="done"
+                  />
+                </View>
+              )}
+            </View>
 
 
             {/* Preview Section - Bottom Summary */}
@@ -1576,5 +1665,58 @@ const styles = StyleSheet.create({
   },
   quickCoinsTextActive: {
     color: '#388e3c',
+  },
+  // Recurring Event Styles
+  recurringOptionsBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 8,
+    marginBottom: 12,
+    backgroundColor: '#f0f0f0',
+    borderRadius: 12,
+    padding: 8,
+  },
+  recurringOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#e0e0e0',
+  },
+  recurringOptionButtonActive: {
+    backgroundColor: '#4CAF50',
+  },
+  recurringOptionIcon: {
+    fontSize: 20,
+    marginRight: 8,
+  },
+  recurringOptionText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  recurringCountBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  recurringCountLabel: {
+    fontSize: 14,
+    color: '#666',
+    marginRight: 8,
+  },
+  recurringCountInput: {
+    width: 60,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    paddingHorizontal: 10,
+    textAlign: 'right',
+    fontSize: 16,
+    color: '#333',
   },
 }); 

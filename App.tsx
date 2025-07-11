@@ -1,4 +1,5 @@
 import { NavigationContainer } from '@react-navigation/native';
+import * as Notifications from 'expo-notifications';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import MainNavigator from './app/MainNavigator';
@@ -11,6 +12,96 @@ export default function App() {
   useEffect(() => {
     preloadAppData();
   }, []);
+
+  // 🧪 TESTING: Get push token for manual testing - IMMEDIATE
+  useEffect(() => {
+    const getTokenForTesting = async () => {
+      try {
+        console.log('🔔 [Testing] Requesting notification permissions...');
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status !== 'granted') {
+          console.log('❌ No permission for notifications');
+          console.log('💡 Please allow notifications in device settings');
+          return;
+        }
+        
+        console.log('✅ [Testing] Permission granted, getting token...');
+        const tokenData = await Notifications.getExpoPushTokenAsync({
+          projectId: 'fec72c28-8706-4ed2-81ef-9d1a28a23345'
+        });
+        
+        console.log('');
+        console.log('🎯 ===== COPY THIS TOKEN FOR TESTING =====');
+        console.log('📱 Token:', tokenData.data);
+        console.log('');
+        console.log('📋 Testing Instructions:');
+        console.log('1. Copy the token above');
+        console.log('2. Go to: https://expo.dev/notifications');
+        console.log('3. Paste token in "Recipient"');
+        console.log('4. Add title: "🌟 התנדבות חדשה!"');
+        console.log('5. Add message: "בדיקת מערכת התראות - Voluntree"');
+        console.log('6. Click "Send Notification"');
+        console.log('7. Check your device for the notification!');
+        console.log('==========================================');
+        console.log('');
+        
+        return tokenData.data;
+      } catch (error) {
+        console.error('❌ Error getting token:', error);
+      }
+    };
+    
+    // Call immediately when app starts
+    getTokenForTesting();
+  }, []);
+
+  // Setup push notification listeners
+  useEffect(() => {
+    const setupNotifications = async () => {
+      try {
+        const { setupNotificationListeners } = await import('./app/utils/pushNotifications');
+        
+        console.log('🔔 [App] Setting up push notification listeners...');
+        
+        const cleanup = setupNotificationListeners(
+          (notification) => {
+            console.log('📨 [App] Notification received:', notification.request.content.title);
+            // Handle notification received while app is running
+          },
+          (response) => {
+            console.log('👆 [App] Notification tapped:', response.notification.request.content.title);
+            // Handle notification tap - could navigate to specific screen
+            const data = response.notification.request.content.data;
+            if (data?.type === 'new_volunteer_event') {
+              console.log('🎯 [App] Navigating to volunteer event:', data.eventId);
+              // Could implement navigation to specific event here
+            }
+          }
+        );
+        
+        console.log('✅ [App] Push notification listeners set up');
+        
+        return cleanup;
+      } catch (error) {
+        console.error('❌ [App] Failed to setup notification listeners:', error);
+        return () => {}; // Return empty cleanup function
+      }
+    };
+    
+    let cleanup: (() => void) | undefined;
+    
+    if (isDataLoaded) {
+      setupNotifications().then((cleanupFn) => {
+        cleanup = cleanupFn;
+      });
+    }
+    
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, [isDataLoaded]);
 
   const preloadAppData = async () => {
     try {

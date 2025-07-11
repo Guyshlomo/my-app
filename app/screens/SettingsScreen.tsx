@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Animated,
@@ -9,12 +9,14 @@ import {
     Platform,
     SafeAreaView,
     StyleSheet,
+    Switch,
     Text,
     TouchableOpacity,
     View
 } from 'react-native';
 import { supabase } from '../config/supabase';
 import { deleteUserAccount, getCurrentUserFromSupabase } from '../db/supabaseApi';
+import { clearCredentials, isRememberMeEnabled, setRememberMePreference } from '../utils/secureStorage';
 
 interface SettingsScreenProps {
   visible: boolean;
@@ -27,6 +29,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
   const navigation = useNavigation<StackNavigationProp<any>>();
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const [rememberMeEnabled, setRememberMeEnabledState] = useState(false);
 
   // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
   const { width: screenWidth } = Dimensions.get('window');
@@ -35,6 +38,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
 
   useEffect(() => {
     if (visible) {
+      loadRememberMePreference();
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
@@ -63,6 +67,39 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
     }
   }, [visible]);
 
+  const loadRememberMePreference = async () => {
+    try {
+      const enabled = await isRememberMeEnabled();
+      setRememberMeEnabledState(enabled);
+    } catch (error) {
+      console.error('Error loading remember me preference:', error);
+    }
+  };
+
+  const handleRememberMeToggle = async (enabled: boolean) => {
+    try {
+      await setRememberMePreference(enabled);
+      setRememberMeEnabledState(enabled);
+      
+      if (enabled) {
+        Alert.alert(
+          'זכור אותי הופעל',
+          'האפליקציה תזכור את פרטי ההתחברות שלך לפעם הבאה.',
+          [{ text: 'הבנתי', style: 'default' }]
+        );
+      } else {
+        Alert.alert(
+          'זכור אותי בוטל',
+          'פרטי ההתחברות שלך נמחקו מהמכשיר.',
+          [{ text: 'הבנתי', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error updating remember me preference:', error);
+      Alert.alert('שגיאה', 'אירעה שגיאה בעדכון ההגדרות');
+    }
+  };
+
   const handleLogout = async () => {
     Alert.alert(
       'התנתקות',
@@ -77,6 +114,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
           style: 'destructive',
           onPress: async () => {
             try {
+              // Clear stored credentials when logging out
+              await clearCredentials();
               await supabase.auth.signOut();
               onClose();
               navigation.navigate('Login');
@@ -183,6 +222,26 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
           </View>
 
           <View style={styles.menuContainer}>
+            {/* Remember Me Toggle */}
+            <View style={styles.menuItem}>
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemIcon}>🔐</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={[styles.menuItemText, { fontSize: responsiveFontSize(18) }]}>זכור אותי</Text>
+                  <Text style={[styles.menuItemSubtext, { fontSize: responsiveFontSize(14) }]}>
+                    שמור פרטי התחברות למכשיר
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                value={rememberMeEnabled}
+                onValueChange={handleRememberMeToggle}
+                trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
+                thumbColor={rememberMeEnabled ? '#FFFFFF' : '#FFFFFF'}
+                ios_backgroundColor="#E0E0E0"
+              />
+            </View>
+
             <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
               <View style={styles.menuItemContent}>
                 <Text style={styles.menuItemIcon}>🚪</Text>
@@ -311,10 +370,17 @@ const styles = StyleSheet.create({
     fontSize: 24,
     marginRight: 16,
   },
+  menuItemTextContainer: {
+    flex: 1,
+  },
   menuItemText: {
     fontSize: 18,
     color: '#333333',
     fontWeight: '600',
+  },
+  menuItemSubtext: {
+    color: '#666666',
+    marginTop: 4,
   },
   dangerText: {
     color: '#DC2626',

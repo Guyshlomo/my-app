@@ -197,6 +197,170 @@ export async function logoutFromSupabase() {
   }
 }
 
+// Reset password
+export async function resetPasswordWithSupabase(email: string) {
+  try {
+    console.log('🔐 [Supabase] Sending password reset email...');
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: 'voluntree://reset-password', // Deep link for mobile app
+    });
+    
+    if (error) {
+      console.error('❌ [Supabase] Password reset error:', error);
+      throw error;
+    }
+    
+    console.log('✅ [Supabase] Password reset email sent successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ [Supabase] Password reset failed:', error);
+    throw error;
+  }
+}
+
+// Social Authentication Functions
+
+// Sign in with Google
+export async function signInWithGoogle() {
+  try {
+    console.log('🔐 [Supabase] Starting Google sign-in...');
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: 'voluntree://auth/callback',
+      },
+    });
+    
+    if (error) {
+      console.error('❌ [Supabase] Google sign-in error:', error);
+      throw error;
+    }
+    
+    console.log('✅ [Supabase] Google sign-in initiated');
+    return data;
+  } catch (error) {
+    console.error('❌ [Supabase] Google sign-in failed:', error);
+    throw error;
+  }
+}
+
+// Sign in with Facebook
+export async function signInWithFacebook() {
+  try {
+    console.log('🔐 [Supabase] Starting Facebook sign-in...');
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'facebook',
+      options: {
+        redirectTo: 'voluntree://auth/callback',
+      },
+    });
+    
+    if (error) {
+      console.error('❌ [Supabase] Facebook sign-in error:', error);
+      throw error;
+    }
+    
+    console.log('✅ [Supabase] Facebook sign-in initiated');
+    return data;
+  } catch (error) {
+    console.error('❌ [Supabase] Facebook sign-in failed:', error);
+    throw error;
+  }
+}
+
+// Sign in with Apple
+export async function signInWithApple() {
+  try {
+    console.log('🔐 [Supabase] Starting Apple sign-in...');
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'apple',
+      options: {
+        redirectTo: 'voluntree://auth/callback',
+      },
+    });
+    
+    if (error) {
+      console.error('❌ [Supabase] Apple sign-in error:', error);
+      throw error;
+    }
+    
+    console.log('✅ [Supabase] Apple sign-in initiated');
+    return data;
+  } catch (error) {
+    console.error('❌ [Supabase] Apple sign-in failed:', error);
+    throw error;
+  }
+}
+
+// Handle OAuth callback and create user profile if needed
+export async function handleOAuthCallback() {
+  try {
+    console.log('🔄 [Supabase] Handling OAuth callback...');
+    
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error || !user) {
+      console.error('❌ [Supabase] OAuth callback error:', error);
+      throw error || new Error('No user found after OAuth');
+    }
+    
+    console.log('✅ [Supabase] OAuth user found:', user.id);
+    
+    // Check if user profile exists
+    const { data: existingProfile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+    
+    if (profileError && profileError.code !== 'PGRST116') {
+      console.error('❌ [Supabase] Profile check error:', profileError);
+      throw profileError;
+    }
+    
+    // Create profile if it doesn't exist
+    if (!existingProfile) {
+      console.log('📝 [Supabase] Creating new user profile...');
+      
+      const { error: insertError } = await supabase
+        .from('users')
+        .insert([
+          {
+            id: user.id,
+            email: user.email || '',
+            firstname: user.user_metadata?.full_name?.split(' ')[0] || user.user_metadata?.name || '',
+            lastname: user.user_metadata?.full_name?.split(' ').slice(1).join(' ') || '',
+            coins: 0,
+            taskcompleted: 0,
+            isadmin: false,
+            profileimage: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+            show_email: true,
+          }
+        ]);
+      
+      if (insertError) {
+        console.error('❌ [Supabase] Profile creation error:', insertError);
+        throw insertError;
+      }
+      
+      console.log('✅ [Supabase] New user profile created');
+    }
+    
+    // Get the complete user profile
+    const userProfile = await getCurrentUserFromSupabase();
+    console.log('✅ [Supabase] OAuth authentication completed');
+    
+    return userProfile;
+  } catch (error) {
+    console.error('❌ [Supabase] OAuth callback failed:', error);
+    throw error;
+  }
+}
+
 // Delete user account
 export async function deleteUserAccount(userId: string) {
   try {
@@ -319,15 +483,21 @@ export async function getAllUsersFromSupabase(): Promise<User[]> {
 
 // ===== VOLUNTEER EVENT FUNCTIONS =====
 
-// Get all volunteer events
-export async function getAllVolunteerEvents(): Promise<VolunteerEvent[]> {
+// Get all volunteer events (optionally filtered by user settlement)
+export async function getAllVolunteerEvents(userSettlement?: string): Promise<VolunteerEvent[]> {
   try {
-    console.log('📅 [Supabase] Getting all volunteer events...');
+    console.log('📅 [Supabase] Getting volunteer events...', userSettlement ? `for settlement: ${userSettlement}` : 'all events');
     
-    const { data, error } = await supabase
+    let query = supabase
       .from('volunteer_events')
-      .select('*')
-      .order('date', { ascending: false });
+      .select('*');
+    
+    // Filter by location matching user's settlement
+    if (userSettlement) {
+      query = query.eq('location', userSettlement);
+    }
+    
+    const { data, error } = await query.order('date', { ascending: false });
 
     if (error) {
       console.error('❌ [Supabase] Get events error:', error);
@@ -381,6 +551,24 @@ export async function getAllVolunteerEvents(): Promise<VolunteerEvent[]> {
     return events;
   } catch (error) {
     console.error('❌ [Supabase] Get all events failed:', error);
+    throw error;
+  }
+}
+
+// Get volunteer events for specific user (filtered by location matching user's settlement)
+export async function getVolunteerEventsForUser(userSettlement?: string): Promise<VolunteerEvent[]> {
+  try {
+    console.log('🏘️ [Supabase] Getting volunteer events for user settlement:', userSettlement);
+    console.log('📍 [Supabase] Filtering by location field in volunteer_events table');
+    
+    if (!userSettlement) {
+      console.log('⚠️ [Supabase] No settlement provided, returning all events');
+      return getAllVolunteerEvents();
+    }
+    
+    return getAllVolunteerEvents(userSettlement);
+  } catch (error) {
+    console.error('❌ [Supabase] Get events for user failed:', error);
     throw error;
   }
 }
@@ -641,9 +829,81 @@ export async function createVolunteerEvent(eventData: {
     }
 
     console.log('✅ [Supabase] Event created successfully:', data.id);
+    
+    // Send push notifications to users in the target settlement
+    try {
+      const { sendNewEventNotification } = await import('../utils/pushNotifications');
+      
+      console.log('📢 [Supabase] Sending push notifications for new event...');
+      const notificationSuccess = await sendNewEventNotification(
+        {
+          id: data.id,
+          title: data.title,
+          location: data.location,
+          date: data.date,
+          time: data.time || '00:00',
+          description: data.description,
+        },
+        data.location // Use location as the target settlement
+      );
+      
+      if (notificationSuccess) {
+        console.log('✅ [Supabase] Push notifications sent successfully');
+      } else {
+        console.warn('⚠️ [Supabase] Push notifications failed, but event was created');
+      }
+    } catch (pushError) {
+      console.error('❌ [Supabase] Push notification error:', pushError);
+      // Don't throw - event creation succeeded, notification failure is not critical
+    }
+    
     return data;
   } catch (error) {
     console.error('❌ [Supabase] Create event failed:', error);
+    throw error;
+  }
+}
+
+// Update volunteer event
+export async function updateVolunteerEvent(eventId: string, eventData: {
+  title: string;
+  description: string;
+  date: string;
+  location: string;
+  time: string;
+  max_participants: number;
+  coins_reward: number;
+  image_url?: string;
+}) {
+  try {
+    console.log('✏️ [Supabase] Updating volunteer event:', eventId);
+    
+    const { data, error } = await supabase
+      .from('volunteer_events')
+      .update({
+        title: eventData.title,
+        description: eventData.description,
+        date: eventData.date,
+        location: eventData.location,
+        time: eventData.time,
+        max_participants: eventData.max_participants,
+        coins_reward: eventData.coins_reward,
+        image_url: eventData.image_url || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', eventId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ [Supabase] Update event error:', error);
+      throw error;
+    }
+
+    console.log('✅ [Supabase] Event updated successfully:', data.id);
+    return data;
+  } catch (error) {
+    console.error('❌ [Supabase] Update event failed:', error);
     throw error;
   }
 }
