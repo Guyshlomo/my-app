@@ -19,7 +19,7 @@
         "2"
       ],
       "bundleIdentifier": "com.voluntree.myapp",
-      "buildNumber": "27",
+      "buildNumber": "34",
       "infoPlist": {
         "UIDeviceFamily": [
           1,
@@ -42,10 +42,14 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "voluntree-oauth",
-            "CFBundleURLSchemes": ["voluntree"]
+            "CFBundleURLSchemes": [
+              "voluntree"
+            ]
           }
         ],
-        "UIBackgroundModes": ["remote-notification"]
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
       }
     },
     "android": {
@@ -65,7 +69,10 @@
               "scheme": "voluntree"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
