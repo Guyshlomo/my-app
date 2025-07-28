@@ -202,9 +202,10 @@ export async function resetPasswordWithSupabase(email: string) {
   try {
     console.log('🔐 [Supabase] Sending password reset email...');
     
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: 'voluntree://reset-password', // Deep link for mobile app
-    });
+    // Use web URL that will redirect to app if available, or show web form
+              const { error } = await supabase.auth.resetPasswordForEmail(email, {
+            redirectTo: 'https://oomibleqeelsswfbkjou.supabase.co/auth/v1/verify?type=recovery',
+          });
     
     if (error) {
       console.error('❌ [Supabase] Password reset error:', error);

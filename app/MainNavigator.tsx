@@ -1,5 +1,7 @@
+import { useNavigation } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useSupabaseAuth } from './hooks/useSupabaseAuth';
 import AdminUsersScreen from './screens/AdminUsersScreen';
 import CalendarScreen from './screens/CalendarScreen';
 import EditEventScreen from './screens/EditEventScreen';
@@ -8,6 +10,7 @@ import HomeScreen from './screens/HomeScreen';
 import LoginScreen from './screens/LoginScreen';
 import LuckyWheelScreen from './screens/LuckyWheelScreen';
 import PurchaseHistoryScreen from './screens/PurchaseHistoryScreen';
+import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import SignupScreen from './screens/SignupScreen';
 import TrophyScreen from './screens/TrophyScreen';
 import VolunteerScreen from './screens/VolunteerScreen';
@@ -26,9 +29,19 @@ export type RootStackParamList = {
   LuckyWheel: undefined;
   AdminUsers: undefined;
   EditEvent: { eventId: string; eventData: any };
+  ResetPassword: undefined;
 };
 
 function MainNavigator() {
+  const navigation = useNavigation();
+  const { setNavigationRef } = useSupabaseAuth();
+
+  useEffect(() => {
+    // Set navigation reference for deep link handling
+    console.log('🧭 [MainNavigator] Setting navigation reference for deep links');
+    setNavigationRef(navigation);
+  }, [navigation, setNavigationRef]);
+
   return (
     <Stack.Navigator
       initialRouteName="Login"
@@ -76,8 +89,17 @@ function MainNavigator() {
           headerTitleAlign: 'center',
         }}
       />
+      <Stack.Screen 
+        name="ResetPassword" 
+        component={ResetPasswordScreen}
+        options={{
+          title: 'איפוס סיסמה',
+          headerTitleAlign: 'center',
+        }}
+      />
     </Stack.Navigator>
   );
 }
+
 export default MainNavigator;
 

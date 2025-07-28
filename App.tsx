@@ -1,17 +1,52 @@
 import { NavigationContainer } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useSupabaseAuth } from './app/hooks/useSupabaseAuth';
 import MainNavigator from './app/MainNavigator';
 import { volunteerEventsManager } from './app/utils/volunteerEvents';
 
 export default function App() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [loadingText, setLoadingText] = useState('טוען נתונים...');
+  const navigationRef = useRef<any>(null);
+  
+  // Initialize Supabase auth for deep link handling
+  const { setNavigationRef } = useSupabaseAuth();
 
   useEffect(() => {
     preloadAppData();
   }, []);
+
+  useEffect(() => {
+    // Set navigation reference for deep link handling
+    if (navigationRef.current) {
+      console.log('🧭 [App] Setting navigation reference for deep links');
+      setNavigationRef(navigationRef.current);
+    } else {
+      console.log('⚠️ [App] Navigation reference not available yet');
+    }
+  }, [setNavigationRef]);
+
+  // Add a second effect to handle navigation reference after it's set
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (navigationRef.current) {
+        console.log('🧭 [App] Re-setting navigation reference after delay');
+        setNavigationRef(navigationRef.current);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [setNavigationRef]);
+
+  // Add a third effect to handle navigation reference after data is loaded
+  useEffect(() => {
+    if (isDataLoaded && navigationRef.current) {
+      console.log('🧭 [App] Setting navigation reference after data loaded');
+      setNavigationRef(navigationRef.current);
+    }
+  }, [isDataLoaded, setNavigationRef]);
 
   // 🧪 TESTING: Get push token for manual testing - IMMEDIATE
   useEffect(() => {
@@ -141,6 +176,7 @@ export default function App() {
 
   return (
     <NavigationContainer
+      ref={navigationRef}
       theme={{
         dark: false,
         colors: {
@@ -171,9 +207,22 @@ export default function App() {
         },
       }}
       linking={{
-        prefixes: [],
+        prefixes: ['voluntree://'],
         config: {
-          screens: {},
+          screens: {
+            Login: 'login',
+            Signup: 'signup',
+            Home: 'home',
+            Trophy: 'trophy',
+            Calendar: 'calendar',
+            Gift: 'gift',
+            Volunteer: 'volunteer',
+            PurchaseHistory: 'purchase-history',
+            LuckyWheel: 'lucky-wheel',
+            AdminUsers: 'admin-users',
+            EditEvent: 'edit-event',
+            ResetPassword: 'reset-password',
+          },
         },
       }}
       fallback={null}
