@@ -1,21 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, Dimensions, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
-import { signupWithSupabase } from '../db/supabaseApi';
-
-const SETTLEMENTS = [
-  'ניר-עם',
-  'כפר עזה',
-  'ארז',
-  'יכיני',
-  'אור-הנר',
-  'נחל עוז',
-  'ברור-חיל',
-  'גבים',
-  'דורות',
-  'מפלסים',
-  'רוחמה'
-];
+import { getAllSettlements, signupWithSupabase } from '../db/supabaseApi';
 
 export default function SignupScreen({ navigation }: any) {
   // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
@@ -46,6 +32,38 @@ export default function SignupScreen({ navigation }: any) {
   const [isSettlementModalVisible, setSettlementModalVisible] = useState(false);
   const [avatarModalVisible, setAvatarModalVisible] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  
+  // State for settlements from Supabase
+  const [settlements, setSettlements] = useState<Array<{id: number, name: string}>>([]);
+  const [isLoadingSettlements, setIsLoadingSettlements] = useState(true);
+
+  // Load settlements from Supabase
+  useEffect(() => {
+    loadSettlements();
+  }, []);
+
+  const loadSettlements = async () => {
+    try {
+      console.log('🏘️ [SignupScreen] Loading settlements from Supabase...');
+      const settlementsData = await getAllSettlements();
+      console.log('📊 [SignupScreen] Raw settlements data:', settlementsData);
+      setSettlements(settlementsData);
+      console.log('✅ [SignupScreen] Settlements loaded successfully:', settlementsData.length);
+      
+      // Log all settlement names
+      settlementsData.forEach(settlement => {
+        console.log(`  - ${settlement.name} (ID: ${settlement.id})`);
+      });
+      
+    } catch (error) {
+      console.error('❌ [SignupScreen] Failed to load settlements:', error);
+      console.error('❌ [SignupScreen] Error details:', error instanceof Error ? error.message : 'Unknown error');
+      // No fallback - just show empty list if Supabase fails
+      setSettlements([]);
+    } finally {
+      setIsLoadingSettlements(false);
+    }
+  };
 
   const handleConfirmDate = (date: Date) => {
     setBirthDate(date);
@@ -328,24 +346,35 @@ export default function SignupScreen({ navigation }: any) {
                       <Text style={styles.closeButtonText}>✕</Text>
                     </TouchableOpacity>
                   </View>
+                  
                   <ScrollView style={styles.settlementList}>
-                    {SETTLEMENTS.map((item) => (
-                      <TouchableOpacity
-                        key={item}
-                        style={[
-                          styles.settlementItem,
-                          settlement === item && styles.selectedSettlement
-                        ]}
-                        onPress={() => handleSettlementSelect(item)}
-                      >
-                        <Text style={[
-                          styles.settlementItemText,
-                          settlement === item && styles.selectedSettlementText
-                        ]}>
-                          {item}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+                    {isLoadingSettlements ? (
+                      <View style={styles.loadingContainer}>
+                        <Text style={styles.loadingText}>טוען ישובים...</Text>
+                      </View>
+                    ) : settlements.length === 0 ? (
+                      <View style={styles.emptyContainer}>
+                        <Text style={styles.emptyText}>לא נמצאו ישובים</Text>
+                      </View>
+                    ) : (
+                      settlements.map((item) => (
+                        <TouchableOpacity
+                          key={item.id}
+                          style={[
+                            styles.settlementItem,
+                            settlement === item.name && styles.selectedSettlement
+                          ]}
+                          onPress={() => handleSettlementSelect(item.name)}
+                        >
+                          <Text style={[
+                            styles.settlementItemText,
+                            settlement === item.name && styles.selectedSettlementText
+                          ]}>
+                            {item.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))
+                    )}
                   </ScrollView>
                 </View>
               </View>
@@ -609,5 +638,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#222',
     textAlign: 'right',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
   },
 });

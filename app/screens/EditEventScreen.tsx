@@ -63,7 +63,16 @@ export default function EditEventScreen({ navigation, route }: any) {
     try {
       const user = await getCurrentUserFromSupabase();
       if (user && user.isAdmin) {
-        setCurrentUser(user);
+        // בדיקה שרק יוצר ההתנדבות יכול לערוך אותה
+        if (eventData.created_by === user.id) {
+          setCurrentUser(user);
+        } else {
+          Alert.alert(
+            'אין הרשאה', 
+            'רק יוצר ההתנדבות יכול לערוך אותה. התנדבות זו נוצרה על ידי משתמש אחר.',
+            [{ text: 'הבנתי', onPress: () => navigation.goBack() }]
+          );
+        }
       } else {
         Alert.alert('שגיאה', 'אין לך הרשאות לערוך אירועים');
         navigation.goBack();

@@ -110,6 +110,33 @@ export default function App() {
             if (data?.type === 'new_volunteer_event') {
               console.log('🎯 [App] Navigating to volunteer event:', data.eventId);
               // Could implement navigation to specific event here
+            } else if (data?.type === 'admin_registration') {
+              console.log('🎯 [App] Admin registration notification tapped:', data.eventId);
+              // Navigate to admin management screen or specific event
+              if (navigationRef.current) {
+                // Navigate to admin screen to show the new registration
+                navigationRef.current.navigate('AdminUsers' as any);
+              }
+            } else if (data?.type === 'admin_cancellation') {
+              console.log('🎯 [App] Admin cancellation notification tapped:', data.eventId);
+              // Navigate to admin management screen to show the cancellation
+              if (navigationRef.current) {
+                // Navigate to admin screen to show the cancellation
+                navigationRef.current.navigate('AdminUsers' as any);
+              }
+            } else if (data?.type === 'volunteer_approved') {
+              console.log('🎯 [App] Volunteer approval notification tapped:', data.eventId);
+              // Navigate to home screen to show updated coins
+              if (navigationRef.current) {
+                // Navigate to home screen to show the updated coins
+                navigationRef.current.navigate('Home' as any);
+                
+                // Show special notification for coins earned
+                setTimeout(() => {
+                  // This will be handled by the HomeScreen when it loads
+                  console.log('🎉 [App] Showing coins earned notification for event:', data.eventTitle);
+                }, 500);
+              }
             }
           }
         );

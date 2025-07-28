@@ -493,12 +493,12 @@ export async function getAllVolunteerEvents(userSettlement?: string): Promise<Vo
       .from('volunteer_events')
       .select('*');
     
-    // Filter by location matching user's settlement
+    // Filter by location matching user's settlement OR council-wide events
     if (userSettlement) {
-      query = query.eq('location', userSettlement);
+      query = query.or(`location.eq.${userSettlement},council_wide.eq.true`);
     }
     
-    const { data, error } = await query.order('date', { ascending: false });
+    const { data, error } = await query.order('date', { ascending: true });
 
     if (error) {
       console.error('❌ [Supabase] Get events error:', error);
@@ -556,11 +556,11 @@ export async function getAllVolunteerEvents(userSettlement?: string): Promise<Vo
   }
 }
 
-// Get volunteer events for specific user (filtered by location matching user's settlement)
+// Get volunteer events for specific user (filtered by location matching user's settlement OR council-wide events)
 export async function getVolunteerEventsForUser(userSettlement?: string): Promise<VolunteerEvent[]> {
   try {
     console.log('🏘️ [Supabase] Getting volunteer events for user settlement:', userSettlement);
-    console.log('📍 [Supabase] Filtering by location field in volunteer_events table');
+    console.log('📍 [Supabase] Filtering by location field OR council-wide events');
     
     if (!userSettlement) {
       console.log('⚠️ [Supabase] No settlement provided, returning all events');
@@ -583,7 +583,7 @@ export async function getVolunteerEventsByAdmin(adminId: string): Promise<Volunt
       .from('volunteer_events')
       .select('*')
       .eq('created_by', adminId)
-      .order('date', { ascending: false });
+      .order('date', { ascending: true });
 
     if (error) {
       console.error('❌ [Supabase] Get admin events error:', error);
@@ -723,11 +723,23 @@ export async function getEventRegistrations(eventId: string): Promise<VolunteerR
   }
 }
 
-// Complete volunteer event (mark as completed)
+// Complete volunteer event (mark as completed and award coins)
 export async function completeVolunteerEvent(eventId: string, userIds: string[]) {
   try {
     console.log('✅ [Supabase] Completing volunteer event:', eventId, 'for users:', userIds);
     
+    // Get event details to know the coins reward
+    const { data: eventData, error: eventError } = await supabase
+      .from('volunteer_events')
+      .select('title, location, date, time, coins_reward')
+      .eq('id', eventId)
+      .single();
+
+    if (eventError) {
+      console.error('❌ [Supabase] Error fetching event data:', eventError);
+      throw eventError;
+    }
+
     // Update volunteer registrations to completed status
     const { error } = await supabase
       .from('volunteer_registrations')
@@ -738,6 +750,74 @@ export async function completeVolunteerEvent(eventId: string, userIds: string[])
     if (error) {
       console.error('❌ [Supabase] Complete event error:', error);
       throw error;
+    }
+
+    // Update coins and task count for each user
+    for (const userId of userIds) {
+      try {
+        // Get current user data
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('coins, taskcompleted')
+          .eq('id', userId)
+          .single();
+
+        if (userError) {
+          console.error('❌ [Supabase] Error fetching user data for', userId, ':', userError);
+          continue; // Skip this user but continue with others
+        }
+
+        // Calculate new values
+        const currentCoins = userData.coins || 0;
+        const currentTasks = userData.taskcompleted || 0;
+        const newCoins = currentCoins + eventData.coins_reward;
+        const newTasks = currentTasks + 1;
+
+        // Update user
+        const { error: updateError } = await supabase
+          .from('users')
+          .update({ 
+            coins: newCoins, 
+            taskcompleted: newTasks 
+          })
+          .eq('id', userId);
+
+        if (updateError) {
+          console.error('❌ [Supabase] Error updating user', userId, ':', updateError);
+        } else {
+          console.log('✅ [Supabase] Updated user', userId, 'coins:', newCoins, 'tasks:', newTasks);
+        }
+      } catch (userUpdateError) {
+        console.error('❌ [Supabase] Error updating user', userId, ':', userUpdateError);
+        // Continue with other users
+      }
+    }
+
+    // Send push notifications to approved users
+    try {
+      const { sendApprovalNotification } = await import('../utils/pushNotifications');
+      
+      console.log('🔔 [Supabase] Sending approval notifications...');
+      const notificationSuccess = await sendApprovalNotification(
+        {
+          id: eventId,
+          title: eventData.title,
+          location: eventData.location,
+          date: eventData.date,
+          time: eventData.time || '00:00',
+        },
+        userIds,
+        eventData.coins_reward
+      );
+      
+      if (notificationSuccess) {
+        console.log('✅ [Supabase] Approval notifications sent successfully');
+      } else {
+        console.warn('⚠️ [Supabase] Approval notifications failed, but completion succeeded');
+      }
+    } catch (notificationError) {
+      console.error('❌ [Supabase] Approval notification error:', notificationError);
+      // Don't throw - notification failure is not critical for completion
     }
 
     console.log('✅ [Supabase] Event completed successfully');
@@ -752,6 +832,28 @@ export async function completeVolunteerEvent(eventId: string, userIds: string[])
 export async function deleteVolunteerEvent(eventId: string) {
   try {
     console.log('🗑️ [Supabase] Deleting volunteer event:', eventId);
+    
+    // Get current user to verify permissions
+    const currentUser = await getCurrentUserFromSupabase();
+    if (!currentUser?.isAdmin) {
+      throw new Error('אין לך הרשאות למחוק התנדבויות');
+    }
+    
+    // Get the event to check if user is the creator
+    const { data: event, error: fetchError } = await supabase
+      .from('volunteer_events')
+      .select('created_by')
+      .eq('id', eventId)
+      .single();
+    
+    if (fetchError) {
+      console.error('❌ [Supabase] Fetch event error:', fetchError);
+      throw new Error('לא ניתן למצוא את ההתנדבות');
+    }
+    
+    if (event.created_by !== currentUser.id) {
+      throw new Error('רק יוצר ההתנדבות יכול למחוק אותה');
+    }
     
     // First delete all registrations for this event
     await supabase
@@ -811,6 +913,7 @@ export async function createVolunteerEvent(eventData: {
   coins_reward: number;
   settlement?: string;
   created_by: string;
+  council_wide?: boolean;
 }) {
   try {
     console.log('➕ [Supabase] Creating volunteer event:', eventData.title);
@@ -820,6 +923,7 @@ export async function createVolunteerEvent(eventData: {
       .insert([{
         ...eventData,
         is_active: true,
+        council_wide: eventData.council_wide ?? false,
       }])
       .select()
       .single();
@@ -831,7 +935,7 @@ export async function createVolunteerEvent(eventData: {
 
     console.log('✅ [Supabase] Event created successfully:', data.id);
     
-    // Send push notifications to users in the target settlement
+    // Send push notifications to users in the target settlement or all users for council-wide events
     try {
       const { sendNewEventNotification } = await import('../utils/pushNotifications');
       
@@ -845,7 +949,8 @@ export async function createVolunteerEvent(eventData: {
           time: data.time || '00:00',
           description: data.description,
         },
-        data.location // Use location as the target settlement
+        data.location, // Use location as the target settlement
+        data.council_wide || false // Pass council-wide flag
       );
       
       if (notificationSuccess) {
@@ -878,6 +983,28 @@ export async function updateVolunteerEvent(eventId: string, eventData: {
 }) {
   try {
     console.log('✏️ [Supabase] Updating volunteer event:', eventId);
+    
+    // Get current user to verify permissions
+    const currentUser = await getCurrentUserFromSupabase();
+    if (!currentUser?.isAdmin) {
+      throw new Error('אין לך הרשאות לערוך התנדבויות');
+    }
+    
+    // Get the event to check if user is the creator
+    const { data: event, error: fetchError } = await supabase
+      .from('volunteer_events')
+      .select('created_by')
+      .eq('id', eventId)
+      .single();
+    
+    if (fetchError) {
+      console.error('❌ [Supabase] Fetch event error:', fetchError);
+      throw new Error('לא ניתן למצוא את ההתנדבות');
+    }
+    
+    if (event.created_by !== currentUser.id) {
+      throw new Error('רק יוצר ההתנדבות יכול לערוך אותה');
+    }
     
     const { data, error } = await supabase
       .from('volunteer_events')
@@ -1050,6 +1177,54 @@ export async function registerForVolunteerEvent(eventId: string, userId: string)
     // Update event current_participants count
     await updateEventParticipantCount(eventId);
     
+    // Send push notification to admin
+    try {
+      // Get event details and admin info
+      const { data: eventData, error: eventError } = await supabase
+        .from('volunteer_events')
+        .select('title, location, date, time, created_by')
+        .eq('id', eventId)
+        .single();
+      
+      if (!eventError && eventData) {
+        // Get registrant name
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('firstname, lastname')
+          .eq('id', userId)
+          .single();
+        
+        if (!userError && userData) {
+          const registrantName = `${userData.firstname || ''} ${userData.lastname || ''}`.trim();
+          
+          // Import and send notification
+          const { sendAdminRegistrationNotification } = await import('../utils/pushNotifications');
+          
+          console.log('🔔 [Supabase] Sending admin registration notification...');
+          const notificationSuccess = await sendAdminRegistrationNotification(
+            {
+              id: eventId,
+              title: eventData.title,
+              location: eventData.location,
+              date: eventData.date,
+              time: eventData.time || '00:00',
+            },
+            eventData.created_by,
+            registrantName || 'משתמש'
+          );
+          
+          if (notificationSuccess) {
+            console.log('✅ [Supabase] Admin registration notification sent successfully');
+          } else {
+            console.warn('⚠️ [Supabase] Admin registration notification failed, but registration succeeded');
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error('❌ [Supabase] Admin notification error:', notificationError);
+      // Don't throw - notification failure is not critical for registration
+    }
+    
     return data;
   } catch (error) {
     console.error('❌ [Supabase] Register for event failed:', error);
@@ -1077,6 +1252,54 @@ export async function cancelVolunteerRegistration(eventId: string, userId: strin
     
     // Update event current_participants count
     await updateEventParticipantCount(eventId);
+    
+    // Send push notification to admin about cancellation
+    try {
+      // Get event details and admin info
+      const { data: eventData, error: eventError } = await supabase
+        .from('volunteer_events')
+        .select('title, location, date, time, created_by')
+        .eq('id', eventId)
+        .single();
+      
+      if (!eventError && eventData) {
+        // Get registrant name
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('firstname, lastname')
+          .eq('id', userId)
+          .single();
+        
+        if (!userError && userData) {
+          const registrantName = `${userData.firstname || ''} ${userData.lastname || ''}`.trim();
+          
+          // Import and send notification
+          const { sendAdminCancellationNotification } = await import('../utils/pushNotifications');
+          
+          console.log('🔔 [Supabase] Sending admin cancellation notification...');
+          const notificationSuccess = await sendAdminCancellationNotification(
+            {
+              id: eventId,
+              title: eventData.title,
+              location: eventData.location,
+              date: eventData.date,
+              time: eventData.time || '00:00',
+            },
+            eventData.created_by,
+            registrantName || 'משתמש'
+          );
+          
+          if (notificationSuccess) {
+            console.log('✅ [Supabase] Admin cancellation notification sent successfully');
+          } else {
+            console.warn('⚠️ [Supabase] Admin cancellation notification failed, but cancellation succeeded');
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error('❌ [Supabase] Admin cancellation notification error:', notificationError);
+      // Don't throw - notification failure is not critical for cancellation
+    }
     
     return true;
   } catch (error) {
@@ -1412,6 +1635,78 @@ export async function markCouponAsUsed(couponId: string) {
     return true;
   } catch (error) {
     console.error('❌ [Supabase] Mark coupon used failed:', error);
+    throw error;
+  }
+} 
+
+// ===== SETTLEMENTS FUNCTIONS =====
+
+// Get all settlements
+export async function getAllSettlements() {
+  try {
+    console.log('🏘️ [Supabase] Getting all settlements...');
+    
+    const { data, error } = await supabase
+      .from('settlements')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('❌ [Supabase] Get settlements error:', error);
+      throw error;
+    }
+
+    console.log('✅ [Supabase] Settlements loaded:', data?.length || 0);
+    return data || [];
+  } catch (error) {
+    console.error('❌ [Supabase] Get settlements failed:', error);
+    throw error;
+  }
+}
+
+// Add new settlement
+export async function addSettlement(name: string) {
+  try {
+    console.log('🏘️ [Supabase] Adding new settlement:', name);
+    
+    const { data, error } = await supabase
+      .from('settlements')
+      .insert([{ name }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error('❌ [Supabase] Add settlement error:', error);
+      throw error;
+    }
+
+    console.log('✅ [Supabase] Settlement added successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ [Supabase] Add settlement failed:', error);
+    throw error;
+  }
+}
+
+// Delete settlement
+export async function deleteSettlement(id: number) {
+  try {
+    console.log('🏘️ [Supabase] Deleting settlement with id:', id);
+    
+    const { error } = await supabase
+      .from('settlements')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('❌ [Supabase] Delete settlement error:', error);
+      throw error;
+    }
+
+    console.log('✅ [Supabase] Settlement deleted successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ [Supabase] Delete settlement failed:', error);
     throw error;
   }
 } 

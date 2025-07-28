@@ -537,6 +537,13 @@ function VolunteerScreen() {
   // Handle event deletion (admin only)
   const handleDeleteEvent = async (eventId: string, eventTitle: string) => {
     if (!currentUser?.isAdmin) return;
+    
+    // בדיקה נוספת שרק יוצר ההתנדבות יכול למחוק אותה
+    const event = events.find(e => e.id === eventId);
+    if (event && event.created_by !== currentUser.id) {
+      Alert.alert('אין הרשאה', 'רק יוצר ההתנדבות יכול למחוק אותה');
+      return;
+    }
 
     Alert.alert(
       'מחיקת התנדבות',
@@ -686,24 +693,30 @@ function VolunteerScreen() {
                           
 
                           
-                          <TouchableOpacity 
-                            style={styles.editButton} 
-                            onPress={() => navigation.navigate('EditEvent' as any, { 
-                              eventId: event.id, 
-                              eventData: event 
-                            })}
-                          >
-                            <MaterialIcons name="edit" size={20} color="#fff" style={{ marginLeft: 6 }} />
-                            <Text style={styles.editButtonText}>ערוך</Text>
-                          </TouchableOpacity>
+                          {/* כפתור עריכה - רק ליוצר ההתנדבות */}
+                          {event.created_by === currentUser?.id && (
+                            <TouchableOpacity 
+                              style={styles.editButton} 
+                              onPress={() => navigation.navigate('EditEvent' as any, { 
+                                eventId: event.id, 
+                                eventData: event 
+                              })}
+                            >
+                              <MaterialIcons name="edit" size={20} color="#fff" style={{ marginLeft: 6 }} />
+                              <Text style={styles.editButtonText}>ערוך</Text>
+                            </TouchableOpacity>
+                          )}
                           
-                          <TouchableOpacity 
-                            style={styles.deleteButton} 
-                            onPress={() => handleDeleteEvent(event.id, event.title)}
-                          >
-                            <MaterialIcons name="delete" size={20} color="#fff" style={{ marginLeft: 6 }} />
-                            <Text style={styles.deleteButtonText}>מחק</Text>
-                          </TouchableOpacity>
+                          {/* כפתור מחיקה - רק ליוצר ההתנדבות */}
+                          {event.created_by === currentUser?.id && (
+                            <TouchableOpacity 
+                              style={styles.deleteButton} 
+                              onPress={() => handleDeleteEvent(event.id, event.title)}
+                            >
+                              <MaterialIcons name="delete" size={20} color="#fff" style={{ marginLeft: 6 }} />
+                              <Text style={styles.deleteButtonText}>מחק</Text>
+                            </TouchableOpacity>
+                          )}
                         </View>
                       </View>
                     )}

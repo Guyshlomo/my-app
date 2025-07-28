@@ -169,6 +169,7 @@ async function savePushTokenToDatabase(userId: string, pushToken: string): Promi
  * Send push notification to users in specific settlement when new volunteer event is created
  * @param eventData - Volunteer event data
  * @param targetSettlement - Settlement to send notifications to
+ * @param isCouncilWide - Whether this is a council-wide event
  * @returns Promise<boolean> - Success status
  */
 export async function sendNewEventNotification(
@@ -180,20 +181,27 @@ export async function sendNewEventNotification(
     time: string;
     description?: string;
   },
-  targetSettlement: string
+  targetSettlement: string,
+  isCouncilWide: boolean = false
 ): Promise<boolean> {
   try {
     console.log('📢 [PushNotifications] Sending new event notification:', {
       eventTitle: eventData.title,
       targetSettlement,
+      isCouncilWide,
     });
 
-    // Get users from target settlement
-    const { data: users, error: usersError } = await supabase
+    // Get users - either from target settlement or all users for council-wide events
+    let query = supabase
       .from('users')
       .select('id, firstname, lastname, settlement')
-      .eq('settlement', targetSettlement)
       .eq('isadmin', false); // Don't send to admins
+    
+    if (!isCouncilWide) {
+      query = query.eq('settlement', targetSettlement);
+    }
+    
+    const { data: users, error: usersError } = await query;
 
     if (usersError) {
       console.error('❌ [PushNotifications] Error fetching users:', usersError);
@@ -375,6 +383,221 @@ export async function removePushToken(userId: string): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('❌ [PushNotifications] Remove token failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Send push notification to admin when someone registers for their event
+ * @param eventData - Event data
+ * @param adminId - Admin user ID
+ * @param registrantName - Name of the person who registered
+ * @returns Promise<boolean> - Success status
+ */
+export async function sendAdminRegistrationNotification(
+  eventData: {
+    id: string;
+    title: string;
+    location: string;
+    date: string;
+    time: string;
+  },
+  adminId: string,
+  registrantName: string
+): Promise<boolean> {
+  try {
+    console.log('🔔 [PushNotifications] Sending admin registration notification for event:', eventData.title);
+
+    // Check if admin has notifications enabled (optional - can be implemented later)
+    // For now, we'll send notifications to all admins
+
+    // Get admin's push token
+    const { data: tokens, error: tokenError } = await supabase
+      .from('notification_tokens')
+      .select('expo_push_token')
+      .eq('user_id', adminId);
+
+    if (tokenError) {
+      console.error('❌ [PushNotifications] Error fetching admin tokens:', tokenError);
+      return false;
+    }
+
+    if (!tokens || tokens.length === 0) {
+      console.log('ℹ️ [PushNotifications] Admin has no push tokens registered');
+      return false;
+    }
+
+    // Prepare notification message
+    const messages = tokens.map(token => ({
+      to: token.expo_push_token,
+      sound: 'default',
+      title: 'הרשמה חדשה להתנדבות! 🎉',
+      body: `${registrantName} נרשם להתנדבות "${eventData.title}"`,
+      data: {
+        type: 'admin_registration',
+        eventId: eventData.id,
+        eventTitle: eventData.title,
+        registrantName: registrantName,
+      },
+    }));
+
+    console.log('📨 [PushNotifications] Sending admin notification to', tokens.length, 'devices');
+
+    // Send notifications
+    const success = await sendPushNotifications(messages);
+    
+    if (success) {
+      console.log('✅ [PushNotifications] Admin registration notification sent successfully');
+    } else {
+      console.error('❌ [PushNotifications] Failed to send admin registration notification');
+    }
+
+    return success;
+  } catch (error) {
+    console.error('❌ [PushNotifications] Admin registration notification failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Send push notification to admin when someone cancels registration for their event
+ * @param eventData - Event data
+ * @param adminId - Admin user ID
+ * @param registrantName - Name of the person who cancelled
+ * @returns Promise<boolean> - Success status
+ */
+export async function sendAdminCancellationNotification(
+  eventData: {
+    id: string;
+    title: string;
+    location: string;
+    date: string;
+    time: string;
+  },
+  adminId: string,
+  registrantName: string
+): Promise<boolean> {
+  try {
+    console.log('🔔 [PushNotifications] Sending admin cancellation notification for event:', eventData.title);
+
+    // Get admin's push token
+    const { data: tokens, error: tokenError } = await supabase
+      .from('notification_tokens')
+      .select('expo_push_token')
+      .eq('user_id', adminId);
+
+    if (tokenError) {
+      console.error('❌ [PushNotifications] Error fetching admin tokens:', tokenError);
+      return false;
+    }
+
+    if (!tokens || tokens.length === 0) {
+      console.log('ℹ️ [PushNotifications] Admin has no push tokens registered');
+      return false;
+    }
+
+    // Prepare notification message
+    const messages = tokens.map(token => ({
+      to: token.expo_push_token,
+      sound: 'default',
+      title: 'ביטול הרשמה להתנדבות 📝',
+      body: `${registrantName} ביטל את ההרשמה להתנדבות "${eventData.title}"`,
+      data: {
+        type: 'admin_cancellation',
+        eventId: eventData.id,
+        eventTitle: eventData.title,
+        registrantName: registrantName,
+      },
+    }));
+
+    console.log('📨 [PushNotifications] Sending admin cancellation notification to', tokens.length, 'devices');
+
+    // Send notifications
+    const success = await sendPushNotifications(messages);
+    
+    if (success) {
+      console.log('✅ [PushNotifications] Admin cancellation notification sent successfully');
+    } else {
+      console.error('❌ [PushNotifications] Failed to send admin cancellation notification');
+    }
+
+    return success;
+  } catch (error) {
+    console.error('❌ [PushNotifications] Admin cancellation notification failed:', error);
+    return false;
+  }
+}
+
+/**
+ * Send push notification to users when their volunteer event is approved
+ * @param eventData - Event data
+ * @param userIds - Array of user IDs who were approved
+ * @param coinsReward - Number of coins awarded
+ * @returns Promise<boolean> - Success status
+ */
+export async function sendApprovalNotification(
+  eventData: {
+    id: string;
+    title: string;
+    location: string;
+    date: string;
+    time: string;
+  },
+  userIds: string[],
+  coinsReward: number
+): Promise<boolean> {
+  try {
+    console.log('🔔 [PushNotifications] Sending approval notification for event:', eventData.title, 'to', userIds.length, 'users');
+
+    if (userIds.length === 0) {
+      console.log('ℹ️ [PushNotifications] No users to notify');
+      return true;
+    }
+
+    // Get push tokens for all approved users
+    const { data: tokens, error: tokenError } = await supabase
+      .from('notification_tokens')
+      .select('expo_push_token, user_id')
+      .in('user_id', userIds);
+
+    if (tokenError) {
+      console.error('❌ [PushNotifications] Error fetching user tokens:', tokenError);
+      return false;
+    }
+
+    if (!tokens || tokens.length === 0) {
+      console.log('ℹ️ [PushNotifications] No users have push tokens registered');
+      return false;
+    }
+
+    // Prepare notification messages
+    const messages = tokens.map(token => ({
+      to: token.expo_push_token,
+      sound: 'default',
+      title: 'התנדבות אושרה! 🎉',
+      body: `התנדבות "${eventData.title}" אושרה! קיבלת ${coinsReward} מטבעות`,
+      data: {
+        type: 'volunteer_approved',
+        eventId: eventData.id,
+        eventTitle: eventData.title,
+        coinsReward: coinsReward,
+      },
+    }));
+
+    console.log('📨 [PushNotifications] Sending approval notifications to', tokens.length, 'devices');
+
+    // Send notifications
+    const success = await sendPushNotifications(messages);
+    
+    if (success) {
+      console.log('✅ [PushNotifications] Approval notifications sent successfully');
+    } else {
+      console.error('❌ [PushNotifications] Failed to send approval notifications');
+    }
+
+    return success;
+  } catch (error) {
+    console.error('❌ [PushNotifications] Approval notification failed:', error);
     return false;
   }
 } 

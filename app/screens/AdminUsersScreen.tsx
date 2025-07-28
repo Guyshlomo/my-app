@@ -12,7 +12,14 @@ import {
 } from 'react-native';
 import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { supabase } from '../config/supabase';
-import { createVolunteerEvent, deleteVolunteerEvent, getCurrentUserFromSupabase, getEventRegistrations, getVolunteerEventsByAdmin } from '../db/supabaseApi';
+import {
+  createVolunteerEvent,
+  deleteVolunteerEvent,
+  getAllSettlements,
+  getCurrentUserFromSupabase,
+  getEventRegistrations,
+  getVolunteerEventsByAdmin
+} from '../db/supabaseApi';
 import type { CreateVolunteerEventData, User, VolunteerEvent, VolunteerRegistration } from '../types/types';
 
 
@@ -24,10 +31,9 @@ export default function AdminUsersScreen({ navigation, route }: any) {
   const [showParticipantsModal, setShowParticipantsModal] = useState(false);
   const [selectedEventParticipants, setSelectedEventParticipants] = useState<VolunteerRegistration[]>([]);
   const [selectedEventTitle, setSelectedEventTitle] = useState<string>('');
-  const [showTemplatesModal, setShowTemplatesModal] = useState(false);
   const [isDatePickerVisible, setDatePickerVisible] = useState(false);
   const [isTimePickerVisible, setTimePickerVisible] = useState(false);
-  // Removed users state and activeTab - admin can only manage events
+  // Removed showTemplatesModal - templates are no longer needed
   
   // Form state for creating events
   const [newEvent, setNewEvent] = useState<CreateVolunteerEventData>({
@@ -45,72 +51,22 @@ export default function AdminUsersScreen({ navigation, route }: any) {
   const [recurringType, setRecurringType] = useState<'none' | 'weekly'>('none');
   const [recurringCount, setRecurringCount] = useState(1);
 
+  // Council-wide event state
+  const [isCouncilWide, setIsCouncilWide] = useState(false);
+
   // Recurring options
   const recurringOptions = [
     { value: 'none', label: 'חד פעמי', icon: '📅' },
     { value: 'weekly', label: 'שבועי', icon: '🔄' },
   ];
 
-  // Predefined templates for quick event creation
-  const eventTemplates = [
-    {
-      id: 'cleanup',
-      title: 'ניקיון סביבתי',
-      description: 'פעילות ניקיון ושיפור הסביבה',
-      location: 'נקבע לפי הצורך',
-      max_participants: 15,
-      coins_reward: 20,
-      icon: '🌱'
-    },
-    {
-      id: 'elderly',
-      title: 'סיוע לקשישים',
-      description: 'עזרה וליווי לאוכלוסיית הקשישים',
-      location: 'בית אבות מקומי',
-      max_participants: 8,
-      coins_reward: 15,
-      icon: '👵'
-    },
-    {
-      id: 'education',
-      title: 'חונכות לילדים',
-      description: 'סיוע לימודי וחינוכי לילדים',
-      location: 'בית ספר יסודי',
-      max_participants: 10,
-      coins_reward: 20,
-      icon: '📚'
-    },
-    {
-      id: 'food',
-      title: 'חלוקת מזון',
-      description: 'חלוקת מזון לנזקקים',
-      location: 'מרכז קהילתי',
-      max_participants: 12,
-      coins_reward: 10,
-      icon: '🍞'
-    },
-    {
-      id: 'event',
-      title: 'ארגון אירוע קהילתי',
-      description: 'עזרה בארגון וניהול אירועים קהילתיים',
-      location: 'מתחם אירועים',
-      max_participants: 20,
-      coins_reward: 15,
-      icon: '🎉'
-    },
-    {
-      id: 'medical',
-      title: 'תמיכה רפואית',
-      description: 'ליווי וסיוע במוסדות רפואיים',
-      location: 'בית חולים מקומי',
-      max_participants: 6,
-      coins_reward: 20,
-      icon: '🏥'
-    }
-  ];
+  // State for settlements from Supabase
+  const [settlements, setSettlements] = useState<Array<{id: number, name: string}>>([]);
+  const [isLoadingSettlements, setIsLoadingSettlements] = useState(true);
 
   useEffect(() => {
     loadUserData();
+    loadSettlements(); // Load settlements when component mounts
     
     // Check if we should open create form automatically
     if (route?.params?.openCreateForm) {
@@ -245,7 +201,8 @@ export default function AdminUsersScreen({ navigation, route }: any) {
         created_by: currentUser?.id || '',
         description: newEvent.description || '',
         max_participants: newEvent.max_participants || 10,
-        coins_reward: newEvent.coins_reward || 50
+        coins_reward: newEvent.coins_reward || 50,
+        council_wide: isCouncilWide
       };
 
       // Create recurring events
@@ -271,6 +228,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
       });
       setRecurringType('none');
       setRecurringCount(1);
+      setIsCouncilWide(false);
       
       await loadData();
       
@@ -286,6 +244,13 @@ export default function AdminUsersScreen({ navigation, route }: any) {
   };
 
   const handleDeleteEvent = async (eventId: string, eventTitle: string) => {
+    // בדיקה שרק יוצר ההתנדבות יכול למחוק אותה
+    const event = events.find(e => e.id === eventId);
+    if (event && event.created_by !== currentUser?.id) {
+      Alert.alert('אין הרשאה', 'רק יוצר ההתנדבות יכול למחוק אותה');
+      return;
+    }
+
     Alert.alert(
       'מחיקת התנדבות',
       `האם אתה בטוח שברצונך למחוק את "${eventTitle}"?`,
@@ -345,28 +310,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
     }
   };
 
-  // Apply template to new event form
-  const applyTemplate = (template: any) => {
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    
-    // Use admin's settlement as location for better notification targeting
-    const templateLocation = currentUser?.settlement || template.location;
-    
-    setNewEvent({
-      title: template.title,
-      description: template.description,
-      location: templateLocation, // Use admin's settlement
-      date: tomorrow.toISOString().split('T')[0],
-      time: '09:00',
-      max_participants: template.max_participants,
-      coins_reward: template.coins_reward,
-      image_url: ''
-    });
-    setShowTemplatesModal(false);
-    setShowCreateModal(true);
-  };
+
 
   // Duplicate existing event
   const duplicateEvent = (event: VolunteerEvent) => {
@@ -408,13 +352,37 @@ export default function AdminUsersScreen({ navigation, route }: any) {
     setTimePickerVisible(false);
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.loadingText}>טוען...</Text>
-      </SafeAreaView>
-    );
-  }
+  // Load settlements from Supabase
+  const loadSettlements = async () => {
+    try {
+      console.log('🏘️ [AdminUsersScreen] Loading settlements from Supabase...');
+      const settlementsData = await getAllSettlements();
+      console.log('📊 [AdminUsersScreen] Raw settlements data:', settlementsData);
+      setSettlements(settlementsData);
+      console.log('✅ [AdminUsersScreen] Settlements loaded successfully:', settlementsData.length);
+      
+      // Log all settlement names
+      settlementsData.forEach(settlement => {
+        console.log(`  - ${settlement.name} (ID: ${settlement.id})`);
+      });
+      
+    } catch (error) {
+      console.error('❌ [AdminUsersScreen] Failed to load settlements:', error);
+      console.error('❌ [AdminUsersScreen] Error details:', error instanceof Error ? error.message : 'Unknown error');
+      // No fallback - just show empty list if Supabase fails
+      setSettlements([]);
+    } finally {
+      setIsLoadingSettlements(false);
+    }
+  };
+
+      if (loading) {
+      return (
+        <SafeAreaView style={styles.container}>
+          <Text style={styles.loadingText}>טוען...</Text>
+        </SafeAreaView>
+      );
+    }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -430,18 +398,24 @@ export default function AdminUsersScreen({ navigation, route }: any) {
       <View style={styles.quickActionBar}>
         <TouchableOpacity
           style={styles.quickActionButton}
-          onPress={() => setShowCreateModal(true)}
+          onPress={() => {
+            setIsCouncilWide(false);
+            setShowCreateModal(true);
+          }}
         >
           <Text style={styles.quickActionIcon}>➕</Text>
-          <Text style={styles.quickActionText}>יצירה חדשה</Text>
+          <Text style={styles.quickActionText}>יצירת התנדבות קיבוצית חדשה</Text>
         </TouchableOpacity>
         
         <TouchableOpacity
           style={styles.quickActionButton}
-          onPress={() => setShowTemplatesModal(true)}
+          onPress={() => {
+            setIsCouncilWide(true);
+            setShowCreateModal(true);
+          }}
         >
-          <Text style={styles.quickActionIcon}>📋</Text>
-          <Text style={styles.quickActionText}>תבניות</Text>
+          <Text style={styles.quickActionIcon}>🏛️</Text>
+          <Text style={styles.quickActionText}>יצירת התנדבות מועצתית</Text>
         </TouchableOpacity>
       </View>
 
@@ -458,7 +432,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
             <View style={styles.emptyEventsContainer}>
               <Text style={styles.emptyEventsIcon}>📝</Text>
               <Text style={styles.emptyEventsTitle}>עדיין לא יצרת התנדבויות</Text>
-              <Text style={styles.emptyEventsText}>השתמש בכפתורים למעלה כדי ליצור התנדבות חדשה או להשתמש בתבניות מוכנות</Text>
+              <Text style={styles.emptyEventsText}>השתמש בכפתורים למעלה כדי ליצור התנדבות חדשה או התנדבות מועצתית</Text>
             </View>
           ) : (
             events.map(event => (
@@ -485,12 +459,15 @@ export default function AdminUsersScreen({ navigation, route }: any) {
                   >
                     <Text style={styles.duplicateButtonText}>שכפל</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.deleteButton}
-                    onPress={() => handleDeleteEvent(event.id, event.title)}
-                  >
-                    <Text style={styles.deleteButtonText}>מחק</Text>
-                  </TouchableOpacity>
+                  {/* כפתור מחיקה - רק ליוצר ההתנדבות */}
+                  {event.created_by === currentUser?.id && (
+                    <TouchableOpacity
+                      style={styles.deleteButton}
+                      onPress={() => handleDeleteEvent(event.id, event.title)}
+                    >
+                      <Text style={styles.deleteButtonText}>מחק</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
             </View>
             ))
@@ -505,7 +482,9 @@ export default function AdminUsersScreen({ navigation, route }: any) {
             <TouchableOpacity onPress={() => setShowCreateModal(false)}>
               <Text style={styles.modalCloseText}>✕</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>יצירת התנדבות חדשה</Text>
+            <Text style={styles.modalTitle}>
+              יצירת התנדבות {isCouncilWide ? 'מועצתית' : 'חדשה'}
+            </Text>
           </View>
           
           <ScrollView 
@@ -543,35 +522,34 @@ export default function AdminUsersScreen({ navigation, route }: any) {
             <View style={styles.formSection}>
               <Text style={styles.inputLabel}>מיקום *</Text>
               <View style={styles.quickLocationBar}>
-                {[
-                  'ניר-עם',
-                  'כפר עזה',
-                  'ארז',
-                  'יכיני',
-                  'אור-הנר',
-                  'נחל עוז',
-                  'ברור-חיל',
-                  'גבים',
-                  'דורות',
-                  'מפלסים',
-                  'רוחמה'
-                ].map((location) => (
-                  <TouchableOpacity
-                    key={location}
-                    style={[
-                      styles.quickLocationButton,
-                      newEvent.location === location && styles.quickLocationButtonActive
-                    ]}
-                    onPress={() => setNewEvent(prev => ({ ...prev, location }))}
-                  >
-                    <Text style={[
-                      styles.quickLocationText,
-                      newEvent.location === location && styles.quickLocationTextActive
-                    ]}>
-                      {location}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {/* Settlements from Supabase only */}
+                {isLoadingSettlements ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>טוען ישובים...</Text>
+                  </View>
+                ) : settlements.length === 0 ? (
+                  <View style={styles.emptyContainer}>
+                    <Text style={styles.emptyText}>לא נמצאו ישובים</Text>
+                  </View>
+                ) : (
+                  settlements.map((settlement) => (
+                    <TouchableOpacity
+                      key={settlement.id}
+                      style={[
+                        styles.quickLocationButton,
+                        newEvent.location === settlement.name && styles.quickLocationButtonActive
+                      ]}
+                      onPress={() => setNewEvent(prev => ({ ...prev, location: settlement.name }))}
+                    >
+                      <Text style={[
+                        styles.quickLocationText,
+                        newEvent.location === settlement.name && styles.quickLocationTextActive
+                      ]}>
+                        {settlement.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))
+                )}
               </View>
             </View>
 
@@ -672,6 +650,38 @@ export default function AdminUsersScreen({ navigation, route }: any) {
               </View>
             </View>
 
+            {/* Council-wide Event Section */}
+            <View style={styles.formSection}>
+              <Text style={styles.inputLabel}>סוג התנדבות</Text>
+              <View style={styles.councilOptionsBar}>
+                <TouchableOpacity
+                  style={[
+                    styles.councilOptionButton,
+                    !isCouncilWide && styles.councilOptionButtonActive
+                  ]}
+                  onPress={() => setIsCouncilWide(false)}
+                >
+                  <Text style={styles.councilOptionIcon}>🏘️</Text>
+                  <Text style={styles.councilOptionText}>התנדבות יישובית</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.councilOptionButton,
+                    isCouncilWide && styles.councilOptionButtonActive
+                  ]}
+                  onPress={() => setIsCouncilWide(true)}
+                >
+                  <Text style={styles.councilOptionIcon}>🏛️</Text>
+                  <Text style={styles.councilOptionText}>התנדבות מועצתית</Text>
+                </TouchableOpacity>
+              </View>
+              {isCouncilWide && (
+                <View style={styles.councilInfoBar}>
+                  <Text style={styles.councilInfoText}>ℹ️ התנדבות מועצתית תהיה חשופה לכל המשתמשים באפליקציה</Text>
+                </View>
+              )}
+            </View>
+
             {/* Recurring Event Section */}
             <View style={styles.formSection}>
               <Text style={styles.inputLabel}>התנדבות חוזרת</Text>
@@ -709,7 +719,9 @@ export default function AdminUsersScreen({ navigation, route }: any) {
             {(newEvent.title || newEvent.location || newEvent.date || newEvent.time) && (
               <View style={styles.bottomPreviewContainer}>
                 <View style={styles.previewHeader}>
-                  <Text style={styles.previewTitle}>סיכום ההתנדבות ✨</Text>
+                  <Text style={styles.previewTitle}>
+                    סיכום ההתנדבות {isCouncilWide ? '🏛️ מועצתית' : '🏘️ יישובית'} ✨
+                  </Text>
                 </View>
                 
                 <View style={styles.eventPreviewCard}>
@@ -768,7 +780,9 @@ export default function AdminUsersScreen({ navigation, route }: any) {
 
             <View style={styles.buttonSection}>
               <TouchableOpacity style={styles.createEventButton} onPress={handleCreateEvent}>
-                <Text style={styles.createEventButtonText}>צור התנדבות</Text>
+                <Text style={styles.createEventButtonText}>
+                  צור התנדבות {isCouncilWide ? 'מועצתית' : ''}
+                </Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -816,40 +830,7 @@ export default function AdminUsersScreen({ navigation, route }: any) {
         </SafeAreaView>
       </Modal>
 
-      {/* Templates Modal */}
-      <Modal
-        visible={showTemplatesModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>תבניות התנדבות</Text>
-            <TouchableOpacity onPress={() => setShowTemplatesModal(false)}>
-              <Text style={styles.modalCloseText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView style={styles.modalContent}>
-            <View style={styles.templatesGrid}>
-              {eventTemplates.map((template) => (
-                <TouchableOpacity
-                  key={template.id}
-                  style={styles.templateCard}
-                  onPress={() => applyTemplate(template)}
-                >
-                  <Text style={styles.templateIcon}>{template.icon}</Text>
-                  <Text style={styles.templateTitle}>{template.title}</Text>
-                  <Text style={styles.templateDescription}>{template.description}</Text>
-                  <View style={styles.templateStats}>
-                    <Text style={styles.templateStat}>👥 {template.max_participants} משתתפים</Text>
-                    <Text style={styles.templateStat}>🪙 {template.coins_reward} מטבעות</Text>
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
+
       
       {/* Bottom Navigation for Admin */}
       <View style={styles.adminBottomNav}>
@@ -1718,5 +1699,67 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontSize: 16,
     color: '#333',
+  },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#666',
+  },
+  closeButton: {
+    padding: 8,
+  },
+  // Council Options Styles
+  councilOptionsBar: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  councilOptionButton: {
+    flex: 1,
+    backgroundColor: 'white',
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#e9ecef',
+  },
+  councilOptionButtonActive: {
+    backgroundColor: '#2196F3',
+    borderColor: '#2196F3',
+  },
+  councilOptionIcon: {
+    fontSize: 20,
+    marginBottom: 4,
+  },
+  councilOptionText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#333',
+    textAlign: 'center',
+  },
+  councilInfoBar: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#e3f2fd',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#2196F3',
+  },
+  councilInfoText: {
+    fontSize: 12,
+    color: '#1976d2',
+    textAlign: 'center',
+    lineHeight: 16,
   },
 }); 

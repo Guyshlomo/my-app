@@ -30,6 +30,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const [rememberMeEnabled, setRememberMeEnabledState] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [adminNotificationsEnabled, setAdminNotificationsEnabled] = useState(true);
+  const [userNotificationsEnabled, setUserNotificationsEnabled] = useState(true);
 
   // Simple iPad detection for responsive text (iPhone UI stays exactly the same)
   const { width: screenWidth } = Dimensions.get('window');
@@ -39,6 +42,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
   useEffect(() => {
     if (visible) {
       loadRememberMePreference();
+      loadUserData();
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
@@ -73,6 +77,15 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
       setRememberMeEnabledState(enabled);
     } catch (error) {
       console.error('Error loading remember me preference:', error);
+    }
+  };
+
+  const loadUserData = async () => {
+    try {
+      const user = await getCurrentUserFromSupabase();
+      setCurrentUser(user);
+    } catch (error) {
+      console.error('Error loading user data:', error);
     }
   };
 
@@ -186,6 +199,52 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
     );
   };
 
+  const handleAdminNotificationsToggle = async (enabled: boolean) => {
+    try {
+      setAdminNotificationsEnabled(enabled);
+      
+      if (enabled) {
+        Alert.alert(
+          'התראות הופעלו',
+          'תקבל התראות כאשר משתמשים נרשמים להתנדבויות שלך.',
+          [{ text: 'הבנתי', style: 'default' }]
+        );
+      } else {
+        Alert.alert(
+          'התראות בוטלו',
+          'לא תקבל התראות על הרשמות להתנדבויות שלך.',
+          [{ text: 'הבנתי', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error updating admin notifications preference:', error);
+      Alert.alert('שגיאה', 'אירעה שגיאה בעדכון ההגדרות');
+    }
+  };
+
+  const handleUserNotificationsToggle = async (enabled: boolean) => {
+    try {
+      setUserNotificationsEnabled(enabled);
+      
+      if (enabled) {
+        Alert.alert(
+          'התראות הופעלו',
+          'תקבל התראות כאשר התנדבויות שלך מאושרות.',
+          [{ text: 'הבנתי', style: 'default' }]
+        );
+      } else {
+        Alert.alert(
+          'התראות בוטלו',
+          'לא תקבל התראות על אישור התנדבויות שלך.',
+          [{ text: 'הבנתי', style: 'default' }]
+        );
+      }
+    } catch (error) {
+      console.error('Error updating user notifications preference:', error);
+      Alert.alert('שגיאה', 'אירעה שגיאה בעדכון ההגדרות');
+    }
+  };
+
   if (!visible) return null;
 
   return (
@@ -238,6 +297,48 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ visible, onClose }) => 
                 onValueChange={handleRememberMeToggle}
                 trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
                 thumbColor={rememberMeEnabled ? '#FFFFFF' : '#FFFFFF'}
+                ios_backgroundColor="#E0E0E0"
+              />
+            </View>
+
+            {/* Admin Notifications Toggle - Only for admins */}
+            {currentUser?.isAdmin && (
+              <View style={styles.menuItem}>
+                <View style={styles.menuItemContent}>
+                  <Text style={styles.menuItemIcon}>🔔</Text>
+                  <View style={styles.menuItemTextContainer}>
+                    <Text style={[styles.menuItemText, { fontSize: responsiveFontSize(18) }]}>התראות הרשמה</Text>
+                    <Text style={[styles.menuItemSubtext, { fontSize: responsiveFontSize(14) }]}>
+                      קבל התראות על הרשמות להתנדבויות שלך
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={adminNotificationsEnabled}
+                  onValueChange={handleAdminNotificationsToggle}
+                  trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
+                  thumbColor={adminNotificationsEnabled ? '#FFFFFF' : '#FFFFFF'}
+                  ios_backgroundColor="#E0E0E0"
+                />
+              </View>
+            )}
+
+            {/* User Notifications Toggle - For all users */}
+            <View style={styles.menuItem}>
+              <View style={styles.menuItemContent}>
+                <Text style={styles.menuItemIcon}>✅</Text>
+                <View style={styles.menuItemTextContainer}>
+                  <Text style={[styles.menuItemText, { fontSize: responsiveFontSize(18) }]}>התראות אישור</Text>
+                  <Text style={[styles.menuItemSubtext, { fontSize: responsiveFontSize(14) }]}>
+                    קבל התראות כאשר התנדבויות שלך מאושרות
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                value={userNotificationsEnabled}
+                onValueChange={handleUserNotificationsToggle}
+                trackColor={{ false: '#E0E0E0', true: '#4CAF50' }}
+                thumbColor={userNotificationsEnabled ? '#FFFFFF' : '#FFFFFF'}
                 ios_backgroundColor="#E0E0E0"
               />
             </View>

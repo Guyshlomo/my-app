@@ -2,31 +2,31 @@ import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@react-navigation/stack';
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  Animated,
-  Dimensions,
-  Image,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View
+    Alert,
+    Animated,
+    Dimensions,
+    Image,
+    Platform,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 
 import {
-  completeVolunteerEvent,
-  deactivateVolunteerEvent,
-  deleteVolunteerEvent,
-  getAllVolunteerRegistrations,
-  getCurrentUserFromSupabase,
-  getEventRegistrations,
-  getUserById,
-  getVolunteerEventsByAdmin,
-  updateUserInSupabase
+    completeVolunteerEvent,
+    deactivateVolunteerEvent,
+    deleteVolunteerEvent,
+    getAllVolunteerRegistrations,
+    getCurrentUserFromSupabase,
+    getEventRegistrations,
+    getUserById,
+    getVolunteerEventsByAdmin,
+    updateUserInSupabase
 } from '../db/supabaseApi';
 import type { VolunteerEvent, VolunteerRegistration } from '../types/types';
 import { User } from '../types/types';
@@ -97,6 +97,8 @@ export default function HomeScreen() {
   const [avatarMessage, setAvatarMessage] = useState('');
   const [showTip, setShowTip] = useState(false);
   const [currentAvatar, setCurrentAvatar] = useState('🐣');
+  const [showCoinsNotification, setShowCoinsNotification] = useState(false);
+  const [coinsNotificationMessage, setCoinsNotificationMessage] = useState('');
   const avatarPosition = React.useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const lastProgress = useRef(0);
   const [selectedStage, setSelectedStage] = useState<number | null>(null);
@@ -123,6 +125,10 @@ export default function HomeScreen() {
   const [selectedEventForParticipants, setSelectedEventForParticipants] = useState<VolunteerEvent | null>(null);
   const [participantDecisions, setParticipantDecisions] = useState<{[userId: string]: 'approved' | 'rejected' | null}>({});
   const [eventParticipants, setEventParticipants] = useState<VolunteerRegistration[]>([]);
+
+  // Event expiration notification state
+  const [showExpiredEventNotification, setShowExpiredEventNotification] = useState(false);
+  const [expiredEventMessage, setExpiredEventMessage] = useState('');
 
   // אנימציות מנעול וקונפטי
   const [lockAnimations, setLockAnimations] = useState<{[worldId: number]: Animated.Value}>({});
@@ -207,6 +213,44 @@ export default function HomeScreen() {
 
     return () => clearInterval(interval);
   }, [currentUser?.isAdmin]);
+
+  // בדיקה אוטומטית כל דקה אם יש התנדבויות שעבר זמנן
+  useEffect(() => {
+    if (!currentUser?.isAdmin || !adminEvents.length) return;
+
+    const checkExpiredEvents = () => {
+      const now = new Date();
+      const expiredEvents = adminEvents.filter(event => {
+        const eventDateTime = new Date(`${event.date}T${event.time || '00:00'}`);
+        return eventDateTime <= now;
+      });
+
+      if (expiredEvents.length > 0) {
+        console.log('⏰ Found expired events, refreshing admin data:', expiredEvents.map(e => e.title));
+        
+        // הצגת התראה למשתמש
+        const eventNames = expiredEvents.map(e => e.title).join(', ');
+        setExpiredEventMessage(`התנדבויות שעבר זמנן זמינות לאישור: ${eventNames}`);
+        setShowExpiredEventNotification(true);
+        
+        // הסתרת ההתראה אחרי 5 שניות
+        setTimeout(() => {
+          setShowExpiredEventNotification(false);
+        }, 5000);
+        
+        // רענון הנתונים כדי שההתנדבויות יעברו לאישור
+        loadAdminData(true);
+      }
+    };
+
+    // בדיקה ראשונית
+    checkExpiredEvents();
+
+    // בדיקה כל דקה
+    const interval = setInterval(checkExpiredEvents, 60000); // כל דקה
+
+    return () => clearInterval(interval);
+  }, [currentUser?.isAdmin, adminEvents]);
 
   // וידוא שהנתונים מתעדכנים כשחוזרים למסך - עם cache
   useFocusEffect(
@@ -1080,6 +1124,17 @@ export default function HomeScreen() {
     }
   };
 
+  // Show coins earned notification
+  const showCoinsEarnedNotification = (coinsEarned: number, eventTitle: string) => {
+    setCoinsNotificationMessage(`🎉 קיבלת ${coinsEarned} מטבעות על התנדבות "${eventTitle}"!`);
+    setShowCoinsNotification(true);
+    
+    // Hide notification after 5 seconds
+    setTimeout(() => {
+      setShowCoinsNotification(false);
+    }, 5000);
+  };
+
   // פונקציה לאנימציית פתיחת מנעול
   const animateUnlockWorld = (worldId: number) => {
     console.log(`🔓 מתחיל אנימציה לעולם ${worldId}`);
@@ -1273,27 +1328,19 @@ export default function HomeScreen() {
           <Text style={styles.adminSectionTitle}>ההתנדבויות שלי - לאישור</Text>
           
           {adminEvents.filter(event => {
-            const eventDate = new Date(event.date);
-            const today = new Date();
+            const eventDateTime = new Date(`${event.date}T${event.time || '00:00'}`);
+            const now = new Date();
             
-            // Reset time to start of day for accurate comparison
-            eventDate.setHours(0, 0, 0, 0);
-            today.setHours(0, 0, 0, 0);
-            
-            return eventDate < today; // Show only past events for approval (not including today)
+            return eventDateTime <= now; // Show events that have passed their date and time
           }).length === 0 ? (
             <View style={styles.adminEmptyState}>
               <Text style={styles.adminEmptyStateText}>אין התנדבויות הממתינות לאישור</Text>
             </View>
           ) : adminEvents.filter(event => {
-            const eventDate = new Date(event.date);
-            const today = new Date();
+            const eventDateTime = new Date(`${event.date}T${event.time || '00:00'}`);
+            const now = new Date();
             
-            // Reset time to start of day for accurate comparison
-            eventDate.setHours(0, 0, 0, 0);
-            today.setHours(0, 0, 0, 0);
-            
-            return eventDate < today; // Show only past events for approval (not including today)
+            return eventDateTime <= now; // Show events that have passed their date and time
           }).map(event => {
             const eventRegistrations = adminRegistrations.filter(reg => reg.event_id === event.id);
             const pendingCount = eventRegistrations.filter(reg => reg.status === 'registered').length;
@@ -1306,7 +1353,7 @@ export default function HomeScreen() {
                     📍 {event.location}
                   </Text>
                   <Text style={styles.adminEventDetails}>
-                    📅 {new Date(event.date).toLocaleDateString('he-IL')}
+                    📅 {new Date(event.date).toLocaleDateString('he-IL')} | ⏰ {event.time || '00:00'}
                   </Text>
                   <Text style={styles.adminEventDetails}>
                     👥 {pendingCount} משתתפים ממתינים לאישור
@@ -1338,18 +1385,12 @@ export default function HomeScreen() {
           <Text style={styles.adminSectionTitle}>ההתנדבויות שלי - עתידיות</Text>
           
           {(() => {
-                         const futureEvents = adminEvents.filter(event => {
-               const eventDate = new Date(event.date);
-               const today = new Date();
-               
-               // Reset time to start of day for accurate comparison
-               eventDate.setHours(0, 0, 0, 0);
-               today.setHours(0, 0, 0, 0);
-               
-               const isFuture = eventDate >= today; // Include today as "future"
-
-               return isFuture;
-             });
+            const futureEvents = adminEvents.filter(event => {
+              const eventDateTime = new Date(`${event.date}T${event.time || '00:00'}`);
+              const now = new Date();
+              
+              return eventDateTime > now; // Show only future events (including time)
+            });
             
             return futureEvents.length === 0;
           })() ? (
@@ -1357,14 +1398,10 @@ export default function HomeScreen() {
               <Text style={styles.adminEmptyStateText}>אין התנדבויות עתידיות מתוכננות</Text>
             </View>
           ) : adminEvents.filter(event => {
-            const eventDate = new Date(event.date);
-            const today = new Date();
+            const eventDateTime = new Date(`${event.date}T${event.time || '00:00'}`);
+            const now = new Date();
             
-            // Reset time to start of day for accurate comparison
-            eventDate.setHours(0, 0, 0, 0);
-            today.setHours(0, 0, 0, 0);
-            
-            return eventDate >= today; // Include today as "future"
+            return eventDateTime > now; // Show only future events (including time)
           }).map(event => {
             const eventRegistrations = adminRegistrations.filter(reg => reg.event_id === event.id);
             
@@ -1376,7 +1413,7 @@ export default function HomeScreen() {
                     📍 {event.location}
                   </Text>
                   <Text style={styles.adminEventDetails}>
-                    📅 {new Date(event.date).toLocaleDateString('he-IL')}
+                    📅 {new Date(event.date).toLocaleDateString('he-IL')} | ⏰ {event.time || '00:00'}
                   </Text>
                   <Text style={styles.adminEventDetails}>
                     👥 {event.current_participants}/{event.max_participants} נרשמו
@@ -1391,15 +1428,18 @@ export default function HomeScreen() {
                     <Text style={styles.adminViewParticipantsButtonText}>לרשימת המשתתפים</Text>
                   </TouchableOpacity>
                   
-                  <TouchableOpacity
-                    style={styles.adminEditButton}
-                    onPress={() => navigation.navigate('EditEvent' as any, { 
-                      eventId: event.id, 
-                      eventData: event 
-                    })}
-                  >
-                    <Text style={styles.adminEditButtonText}>✏️ ערוך</Text>
-                  </TouchableOpacity>
+                  {/* כפתור עריכה - רק ליוצר ההתנדבות */}
+                  {event.created_by === currentUser?.id && (
+                    <TouchableOpacity
+                      style={styles.adminEditButton}
+                      onPress={() => navigation.navigate('EditEvent' as any, { 
+                        eventId: event.id, 
+                        eventData: event 
+                      })}
+                    >
+                      <Text style={styles.adminEditButtonText}>✏️ ערוך</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             );
@@ -2114,6 +2154,42 @@ export default function HomeScreen() {
         ]}
       >
         <Text style={styles.messageText}>{avatarMessage}</Text>
+      </View>
+    )}
+
+    {/* הודעת מטבעות שהושגו */}
+    {showCoinsNotification && (
+      <View 
+        style={[
+          styles.coinsNotification,
+          {
+            position: 'absolute',
+            top: 100,
+            left: 20,
+            right: 20,
+            zIndex: 1000,
+          }
+        ]}
+      >
+        <Text style={styles.coinsNotificationText}>{coinsNotificationMessage}</Text>
+      </View>
+    )}
+
+    {/* הודעת התנדבויות שעבר זמנן */}
+    {showExpiredEventNotification && (
+      <View 
+        style={[
+          styles.expiredEventNotification,
+          {
+            position: 'absolute',
+            top: showCoinsNotification ? 160 : 100,
+            left: 20,
+            right: 20,
+            zIndex: 1000,
+          }
+        ]}
+      >
+        <Text style={styles.expiredEventNotificationText}>{expiredEventMessage}</Text>
       </View>
     )}
 
@@ -3211,6 +3287,46 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: '#8B4513',
     fontWeight: 'bold',
+  },
+  coinsNotification: {
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  coinsNotificationText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  expiredEventNotification: {
+    backgroundColor: '#FF9800',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderRadius: 10,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  expiredEventNotificationText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
   },
  
   });
